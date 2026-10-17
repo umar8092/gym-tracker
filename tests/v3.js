@@ -155,5 +155,20 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
   ok(await p.locator('#pd-legs').evaluate(e => e.open) && !(await p.locator('#pd-chest').evaluate(e => e.open)), 'the link opens Plan with that muscle expanded');
   await p.context().close();
 
+  // 14. share sheet and links
+  p = await open(390, 844, FRI, '#/', { logs: armsLogs.concat([lg(FRI, 0, 'barbell-curl', 'arms', 12, 30)]), weights, profile });
+  await p.locator('[data-act="share-week"]').click(); await p.waitForSelector('.share-prev img', { timeout: 8000 });
+  ok((await p.locator('.share-btns .btn').count()) === 3 && await p.locator('#sheet [role="dialog"]').count() === 1, 'share opens a dialog with a preview image and Share, Save image, Copy text');
+  const txt = await p.evaluate(() => { return null; });
+  await p.keyboard.press('Escape'); ok(await p.locator('#sheet').count() === 0, 'Escape closes the dialog');
+  ok((await p.locator('.st-link').first().getAttribute('href')) === '#/calendar' && (await p.locator('.st-link[href="#/home/records"]').count()) === 1, 'Home number tiles link to the calendar and to the records');
+  await p.locator('.st-link[href="#/home/records"]').click(); await p.waitForTimeout(250);
+  ok(await p.evaluate(() => { const r = document.getElementById('sec-records'); return !r || r.getBoundingClientRect().top < 200; }), 'the records tile scrolls to the records');
+  await p.goto(URL + '#/today'); await p.waitForTimeout(200);
+  ok(await p.locator('.t-actions a[href="#/plan/arms"]').count() === 1, 'Today links to edit the muscles of the day');
+  await p.goto(URL + '#/plan'); await p.waitForTimeout(200);
+  ok((await p.locator('#pd-arms a[href="#/m/arms"]').count()) === 1, 'each muscle in Plan has a Train now link');
+  await p.context().close();
+
   console.log(fails.length ? '\nFAILURES:\n' + fails.join('\n') : '\nv3 UI tests OK'); await b.close(); process.exit(fails.length ? 1 : 0);
 })();

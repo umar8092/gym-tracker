@@ -669,3 +669,25 @@ body.resting main { padding-top: 70px; }
   .pick-list li > a:first-child { flex: 1 1 100%; }
   .pick-edit { flex: 1 1 100%; max-width: none; border-left: 0; border-top: 1px solid var(--line); justify-content: flex-start; padding: 12px 16px; min-height: 44px; }
 }
+
+/* links that go somewhere */
+.st-link { display: block; text-decoration: none; color: inherit; border-radius: 6px; padding: 4px 6px; margin: -4px -6px; }
+.st-link:hover { background: var(--panel2); }
+a.plain, button.plain { color: inherit; text-decoration: none; background: none; border: 0; padding: 0; font: inherit; text-align: left; cursor: pointer; }
+a.plain:hover, button.plain:hover { text-decoration: underline; text-decoration-color: var(--red); text-underline-offset: 4px; }
+.fold-actions { margin-top: 0; margin-bottom: 4px; }
+.t-actions .link { margin-right: 18px; }
+
+/* dialog / bottom sheet */
+.sheet-bg { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, .66); display: flex; align-items: flex-end; justify-content: center; }
+.sheet { position: relative; width: 100%; max-width: 560px; max-height: 92vh; overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px 14px 0 0; padding: 22px 18px calc(22px + env(safe-area-inset-bottom, 0px)); animation: sheetUp .25s cubic-bezier(.16, 1, .3, 1); }
+.sheet-x { position: absolute; top: 8px; right: 8px; width: 44px; height: 44px; border: 0; background: none; font-size: 30px; line-height: 1; color: var(--muted); }
+.sheet h2 { font-size: 32px; padding-right: 40px; }
+body.sheet-open { overflow: hidden; }
+@keyframes sheetUp { from { transform: translateY(40px); opacity: .3; } to { transform: none; opacity: 1; } }
+@media (min-width: 700px) { .sheet-bg { align-items: center; } .sheet { border-radius: 10px; } }
+@media (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
+.share-prev { margin: 14px 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--bg); min-height: 120px; display: grid; place-items: center; }
+.share-prev img { display: block; width: 100%; max-height: 52vh; object-fit: contain; }
+.share-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.share-btns .primary { grid-column: 1 / -1; }
