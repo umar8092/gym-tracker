@@ -33,11 +33,11 @@ export class Rig {
       if (n0.y > 0) { n0.negate(); }                                // rest palms face the floor
       this.handRest[s] = { f: f0, n: n0, B: new V3().crossVectors(f0, n0).normalize() };
     }
-    // rest foot frame: f0 = ankle -> toes, u0 = up
+    // rest foot frame (feet are flat in the rest pose): f0 = ankle -> ball of foot, u0 = top of the foot
     this.footRest = {};
     for (const s of ['l', 'r']) {
-      const f0 = this.rest['ball_' + s].p.clone().sub(this.rest['foot_' + s].p); f0.y = 0; f0.normalize();
-      const u0 = new V3(0, 1, 0);
+      const f0 = this.rest['ball_' + s].p.clone().sub(this.rest['foot_' + s].p).normalize();
+      const side = new V3().crossVectors(f0, new V3(0, 1, 0)).normalize(), u0 = new V3().crossVectors(side, f0).normalize();
       this.footRest[s] = { f: f0, u: u0, B: new V3().crossVectors(f0, u0).normalize() };
     }
   }
@@ -125,6 +125,16 @@ export class Rig {
     this.aim('thigh_' + s, sol.mid.clone().sub(S)); this.aim('calf_' + s, sol.end.clone().sub(sol.mid));
     if (footF) { this.footFrame(s, footF, footUp || new V3(0, 1, 0)); }
     return { ankle: sol.end, reached: sol.reached };
+  }
+  // relaxed foot that follows the lower leg (no twist), pointed by `plantar` degrees; for hanging or resting legs
+  relaxFoot(s, plantar) {
+    const calf = 'calf_' + s, d = this.wq(calf).multiply(this.rest[calf].q.clone().invert()), axis = new V3(1, 0, 0).applyQuaternion(d);
+    this.turn('foot_' + s, axis, plantar);
+  }
+  // flat foot on the floor, toes turned out by `out` degrees
+  flatFoot(s, out = 0) {
+    const fr = this.footRest[s], a = THREE.MathUtils.degToRad(out * (s === 'l' ? 1 : -1)), q = new Q().setFromAxisAngle(new V3(0, 1, 0), a);
+    this.footFrame(s, fr.f.clone().applyQuaternion(q), fr.u.clone().applyQuaternion(q));
   }
   footFrame(s, f, up) {
     const fr = this.footRest[s], ff = f.clone().normalize(), u = up.clone().sub(ff.clone().multiplyScalar(up.dot(ff))).normalize();

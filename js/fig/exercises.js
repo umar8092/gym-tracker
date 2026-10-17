@@ -17,7 +17,7 @@ export function placeInHand(rig, obj, s, fr, along = 0.075, up = 0.035) {
 export function plantFeet(rig, offs = {}, pole = new V3(0, 0, 1)) {
   for (const s of ['l', 'r']) {
     const T = rig.rest['foot_' + s].p.clone().add(offs[s] || new V3());
-    rig.legIK(s, T, pole.clone(), new V3(0, 0, 1), new V3(0, 1, 0));
+    rig.legIK(s, T, pole.clone()); rig.flatFoot(s, 8);
   }
 }
 
@@ -44,9 +44,9 @@ export function keysExercise(fig) {
 }
 
 /* ---------- shared helpers for lying / bench work ---------- */
-const Q = THREE.Quaternion;
-const Rx = deg => new Q().setFromAxisAngle(new V3(1, 0, 0), deg * DEG);
-const mir = v => new V3(-v.x, v.y, v.z);
+export const Q = THREE.Quaternion;
+export const Rx = deg => new Q().setFromAxisAngle(new V3(1, 0, 0), deg * DEG);
+export const mir = v => new V3(-v.x, v.y, v.z);
 export function gripFrame(F, N) {  // orthonormal finger/palm vectors, so wrist targets can be derived from a grip point
   const f = F.clone().normalize(), n = N.clone().sub(f.clone().multiplyScalar(N.dot(f))).normalize(); return { f, n };
 }
@@ -67,13 +67,13 @@ export function highestPoint(body, test) {
   for (let i = 0; i < n; i++) { body.getVertexPosition(i, v); v.applyMatrix4(body.matrixWorld); if (test(v) && v.y > m) { m = v.y; } }
   return m;
 }
-function legsOnFloor(rig, spread = 0.2, z = 0.5, pole = new V3(0.15, 1, 0.3)) {
+export function legsOnFloor(rig, spread = 0.2, z = 0.5, pole = new V3(0.15, 1, 0.3)) {
   for (const s of ['l', 'r']) {
     const sg = s === 'l' ? 1 : -1;
-    rig.legIK(s, new V3(sg * spread, rig.rest['foot_' + s].p.y, z), new V3(sg * pole.x, pole.y, pole.z), new V3(sg * 0.15, 0, 1), new V3(0, 1, 0));
+    rig.legIK(s, new V3(sg * spread, rig.rest['foot_' + s].p.y, z), new V3(sg * pole.x, pole.y, pole.z)); rig.flatFoot(s, 8);
   }
 }
-const lerp3 = (a, b, t) => a.clone().lerp(b, t);
+export const lerp3 = (a, b, t) => a.clone().lerp(b, t);
 
 // highest extent of the body along `normal` above the point c, within `radius` of the line through c (measured on the posed mesh)
 export function surfaceAlong(body, c, normal, radius) {
@@ -87,7 +87,7 @@ export function surfaceAlong(body, c, normal, radius) {
 
 /* Barbell or dumbbell press lying on a bench. opts: incline (deg of the back pad), bar (true = barbell), grip half-width, bottomZ (how far
    below the shoulder line the weight touches the chest), topSpread (hand spacing at the top relative to the bottom). */
-function pressExercise(o) {
+export function pressExercise(o) {
   const incline = o.incline || 0, pitch = -90 + incline, halfW = o.halfW || 0.3, rad = o.bar ? 0.0145 : 0.075;
   const F = new V3(0, 1, -0.25), N = new V3(0, 0.25, 1);   // forearm vertical, palms toward the feet, slight wrist extension
   const u = new V3(0, 1, 0).applyQuaternion(Rx(pitch)), nF = new V3(0, 0, 1).applyQuaternion(Rx(pitch));   // torso axis (toward the head) and chest normal
@@ -116,9 +116,9 @@ function pressExercise(o) {
       const S = rig.wp('upperarm_l'), reach = rig.len.arm_l[0] + rig.len.arm_l[1];
       const gb = new V3(halfW, st.touch.y, st.touch.z);
       // lockout: wrist straight above the shoulder (slightly in), arms ~97% extended; grip point = wrist + hand offset
-      const dx = halfW * (o.topSpread || 0.9) - S.x, wz = 0.03, wt = new V3(S.x + dx, S.y + Math.sqrt(Math.pow(reach * 0.97, 2) - dx * dx - wz * wz), S.z + wz), gt = wt.clone().add(grip);
+      const dx = halfW * (o.topSpread || 0.9) - S.x, wz = 0.03, wt = new V3(S.x + dx, S.y + Math.sqrt(Math.pow(reach * 0.985, 2) - dx * dx - wz * wz), S.z + wz), gt = wt.clone().add(grip);
       const G = lerp3(gb, gt, t), gl = G.clone(), gr = new V3(-G.x, G.y, G.z);
-      const pole = new V3(0.7, -0.6, 0.25 + 0.35 * t), wl = wristFor(gl, F, N), wr = wristFor(gr, mir(F), mir(N));
+      const pole = o.pole ? o.pole.clone().setZ(o.pole.z + 0.35 * t) : new V3(0.7, -0.6, 0.25 + 0.35 * t), wl = wristFor(gl, F, N), wr = wristFor(gr, mir(F), mir(N));
       const a = rig.armIK('l', wl, pole, F, N, 1), b = rig.armIK('r', wr, mir(pole), mir(F), mir(N), 1);
       if (o.bar) { st.hold.position.set(0, G.y, G.z); st.hold.rotation.set(0, 0, 0); }
       else { placeInHand(rig, st.hold[0], 'l', a.frame); placeInHand(rig, st.hold[1], 'r', b.frame); }
@@ -127,10 +127,63 @@ function pressExercise(o) {
   };
 }
 
+/* Dumbbell fly on a flat bench: arms sweep in the frontal plane. t = 0 wide open (stretch), t = 1 dumbbells together above the chest. */
+function flyExercise() {
+  const base = pressExercise({ bar: false });
+  return Object.assign({}, base, {
+    pose(st, t) {
+      const rig = st.ctx.rig; rig.reset(); lieOnBench(rig, new V3(0, 0.6 + st.dy, 0.12), -90); legsOnFloor(rig);
+      const S = rig.wp('upperarm_l'), reach = rig.len.arm_l[0] + rig.len.arm_l[1];
+      const phi = (100 - 92 * t) * DEG, Rg = reach * (0.93 + 0.04 * t) + 0.083;     // slight elbow bend, a touch straighter at the top
+      const G = new V3(S.x + Rg * Math.sin(phi), S.y + Rg * Math.cos(phi), S.z + 0.05), gl = G, gr = new V3(-G.x, G.y, G.z);
+      const arm = G.clone().sub(S).normalize(), Nl = new V3(-1, 0, 0).lerp(new V3(0, 1, 0), 1 - t).normalize();   // palms face each other at the top, up at the bottom
+      const Nr = mir(Nl), Fl = arm.clone(), Fr = mir(arm), pole = new V3(0.35, -1, 0.15);
+      const a = rig.armIK('l', wristFor(gl, Fl, Nl), pole, Fl, Nl, 1), b = rig.armIK('r', wristFor(gr, Fr, Nr), mir(pole), Fr, Nr, 1);
+      placeInHand(rig, st.hold[0], 'l', a.frame); placeInHand(rig, st.hold[1], 'r', b.frame);
+      return { grips: [gl.clone(), gr.clone()], diag: { reach: [a.reached, b.reached] } };
+    }
+  });
+}
+
+/* Push-up: the whole body is one rigid plank turning about the toes. t = 0 chest near the floor, t = 1 arms extended. */
+function pushUp() {
+  const z0 = -0.95, a0 = 2, a1 = 13.5, handX = 0.3;
+  const plank = (rig, alpha) => {
+    const a = alpha * DEG, d = new V3(0, Math.sin(a), Math.cos(a)), nf = new V3(0, -Math.cos(a), Math.sin(a)), ex = new V3(1, 0, 0);
+    const ankleC = new V3(0, 0.128, z0 - 0.096), pelvis = ankleC.clone().addScaledVector(d, 0.885 + 0.02);
+    rig.setWP('pelvis', pelvis);
+    rig.setWQ('pelvis', new Q().setFromRotationMatrix(new THREE.Matrix4().makeBasis(ex, d, nf)).multiply(rig.rest.pelvis.q.clone()));
+    for (const s of ['l', 'r']) {
+      const sg = s === 'l' ? 1 : -1, ankle = new V3(sg * 0.11, 0.128, z0 - 0.096);
+      rig.legIK(s, ankle, new V3(0, 0.3, -1), new V3(0, -0.8, 0.6), new V3(0, 0.6, 0.8));
+    }
+    rig.turn('neck_01', ex, -14); rig.turn('Head', ex, -18);   // eyes forward and slightly down
+  };
+  return {
+    camera: { ty: 0.4, tz: -0.25, dist: 3.6, yaw: 60, pitch: 14 },
+    setup(ctx) {
+      const rig = ctx.rig; rig.reset(); plank(rig, a1); ctx.root.updateMatrixWorld(true);
+      const S = rig.wp('upperarm_l'); return { ctx, handZ: S.z, shY: S.y };
+    },
+    pose(st, t) {
+      const rig = st.ctx.rig; rig.reset(); plank(rig, a0 + (a1 - a0) * t);
+      const F = new V3(0, 0, 1), N = new V3(0, -1, 0), wl = new V3(handX, 0.05, st.handZ), wr = new V3(-handX, 0.05, st.handZ);
+      const a = rig.armIK('l', wl, new V3(0.8, 0.2, -0.7), F, N, 0.15), b = rig.armIK('r', wr, new V3(-0.8, 0.2, -0.7), mir(F), mir(N), 0.15);
+      return { grips: [rig.wp('spine_03').clone().setX(0)], diag: { reach: [a.reached, b.reached] } };
+    }
+  };
+}
+
+import { makeMore } from './exercises2.js';
+import { makeMachines } from './machines3d.js';
 export const EXERCISES = {
   'barbell-bench-press': pressExercise({ bar: true, halfW: 0.31 }),
-  'incline-dumbbell-press': pressExercise({ bar: false, incline: 30, halfW: 0.26, topSpread: 0.78, camera: { yaw: 35, pitch: 18 } })
+  'incline-dumbbell-press': pressExercise({ bar: false, incline: 30, halfW: 0.26, topSpread: 0.78, camera: { yaw: 35, pitch: 18 } }),
+  'dumbbell-fly': flyExercise(),
+  'push-up': pushUp()
 };
+const HELPERS = { placeInHand, gripFrame, wristFor, lieOnBench, lowestPoint, surfaceAlong, legsOnFloor, Rx, Q, mir, lerp3, pressExercise };
+Object.assign(EXERCISES, makeMore(HELPERS), makeMachines(HELPERS));
 export function exerciseFor(ex) {
   if (EXERCISES[ex.id]) { return EXERCISES[ex.id]; }
   if (ex.fig && ex.fig.U) { return keysExercise(ex.fig); }

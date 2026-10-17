@@ -628,7 +628,8 @@
     var ex = Data.byId[d.dataset.ex], fig = d.querySelector('.fig');
     if (ex && ex.fig && fig && !fig.__st) {
       if (window.Engine3D && Engine3D.supports(ex)) { Engine3D.mount(fig, ex); }
-      else { var top = fig.querySelectorAll('.views button')[3]; if (top) { top.remove(); } Engine.mount(fig, ex.fig); }   // old 2D engine as a fallback
+      else if (ex.fig.U) { var top = fig.querySelectorAll('.views button')[3]; if (top) { top.remove(); } Engine.mount(fig, ex.fig); }   // old 2D engine as a fallback (shoulders only)
+      else { fig.querySelector('.phase').textContent = '3D needs a newer browser or phone. The diagram and steps below still apply.'; }
     }
   }, true);
   window.addEventListener('hashchange', function () { render(); });

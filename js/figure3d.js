@@ -15,7 +15,7 @@ const V3 = THREE.Vector3, DEG = Math.PI / 180, ROOT = new URL('../', import.meta
 const reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 const ease = x => 0.5 - 0.5 * Math.cos(Math.PI * x);
 const norm360 = y => ((y % 360) + 360) % 360, angDist = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
-const SKIN_TINT = 0xe6ccbf;
+const SKIN_TINT = 0xecd2c2;
 
 /* ---------- shared renderer + model (loaded once) ---------- */
 let sharedP = null, R = null;
@@ -41,13 +41,14 @@ function css(name, fallback) { const v = getComputedStyle(document.documentEleme
 
 /* ---------- dashed path of the weights ---------- */
 function dashedPath(points, radius) {
+  let moved = 0; points.forEach(p => { moved = Math.max(moved, p.distanceTo(points[0])); }); if (moved < 0.02) { return null; }   // nothing moves: no path to draw
   const curve = new THREE.CatmullRomCurve3(points, false, 'centripetal'), pts = curve.getSpacedPoints(110), geos = [];
   for (let i = 0; i < pts.length - 1; i += 2) {
     const a = pts[i], b = pts[i + 1], len = a.distanceTo(b); if (len < 1e-4) { continue; }
     const g = new THREE.CylinderGeometry(radius, radius, len, 6, 1, true), m = new THREE.Matrix4();
     m.compose(a.clone().add(b).multiplyScalar(0.5), new THREE.Quaternion().setFromUnitVectors(new V3(0, 1, 0), b.clone().sub(a).normalize()), new V3(1, 1, 1)); g.applyMatrix4(m); geos.push(g);
   }
-  return mergeGeometries(geos);
+  return geos.length ? mergeGeometries(geos) : null;
 }
 
 const figures = []; let raf = 0, io = null, observers = [];
@@ -73,7 +74,7 @@ function mount(sec, ex) {
   vb[0].addEventListener('click', () => turnTo(st, 0, st.def ? st.def.camera.pitch : 11));
   vb[1].addEventListener('click', () => turnTo(st, 90, 11));
   vb[2].addEventListener('click', () => turnTo(st, 180, 11));
-  vb[3].addEventListener('click', () => turnTo(st, null, 86));
+  vb[3].addEventListener('click', () => turnTo(st, 0, 86));   // from above, head toward the top of the screen
   vb[4].addEventListener('click', () => { st.spin = !st.spin; st.tw = null; st.vel = 0; st.viewKey = ''; syncViews(st); kick(); });
 
   cv.addEventListener('pointerdown', e => {
@@ -134,8 +135,8 @@ function build(st, sh) {
   st.nGrips = samples[0].length; st.samples = samples;
   st.trail = new THREE.Group(); scene.add(st.trail); st.trailMats = [];
   for (let g = 0; g < st.nGrips; g++) {
-    const pts = samples.map(s => s[g]), halo = new THREE.Mesh(dashedPath(pts, 0.011), new THREE.MeshBasicMaterial({ depthTest: false, transparent: true, opacity: 0.9 }));
-    const ink = new THREE.Mesh(dashedPath(pts, 0.0055), new THREE.MeshBasicMaterial({ depthTest: false, transparent: true, opacity: 0.95 }));
+    const pts = samples.map(s => s[g]), gH = dashedPath(pts, 0.011), gI = dashedPath(pts, 0.0055); if (!gH || !gI) { st.trailMats.push([new THREE.MeshBasicMaterial(), new THREE.MeshBasicMaterial()]); continue; }
+    const halo = new THREE.Mesh(gH, new THREE.MeshBasicMaterial({ depthTest: false, transparent: true, opacity: 0.9 })), ink = new THREE.Mesh(gI, new THREE.MeshBasicMaterial({ depthTest: false, transparent: true, opacity: 0.95 }));
     halo.renderOrder = 10; ink.renderOrder = 11; st.trail.add(halo, ink); st.trailMats.push([halo.material, ink.material]);
   }
   st.arrows = []; for (let g = 0; g < st.nGrips; g++) {

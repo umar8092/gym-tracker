@@ -33,10 +33,11 @@ for (const [id, t, yaw, pitch, tx, ty, tz, dist, mp, ms] of shots) {
   const rig = new Rig(root), ctx = { rig, scene, root, body }, props = def.setup(ctx); props.ctx = ctx;
   const out = def.pose(props, t); root.updateMatrixWorld(true);
   // diagnostics: lowest body point, elbow/knee angles
-  const v = new THREE.Vector3(); let minY = 9; body.skeleton.update(); for (let i = 0; i < body.geometry.attributes.position.count; i++) { body.getVertexPosition(i, v); v.applyMatrix4(body.matrixWorld); if (v.y < minY) minY = v.y; }
+  const v = new THREE.Vector3(); let minY = 9, minAt = null, minI = 0; body.skeleton.update(); for (let i = 0; i < body.geometry.attributes.position.count; i++) { body.getVertexPosition(i, v); v.applyMatrix4(body.matrixWorld); if (v.y < minY) { minY = v.y; minAt = v.toArray().map(a => +a.toFixed(2)); minI = i; } }
+  const si = body.geometry.attributes.skinIndex, sw = body.geometry.attributes.skinWeight; let bi = 0, bw = 0; for (let k = 0; k < 4; k++) { if (sw.getComponent(minI, k) > bw) { bw = sw.getComponent(minI, k); bi = si.getComponent(minI, k); } } const minBone = body.skeleton.bones[bi].name;
   const ang = (a, b, c) => { const p = rig.wp(a), m = rig.wp(b), e = rig.wp(c); return +(180 - p.clone().sub(m).angleTo(e.clone().sub(m)) * 180 / Math.PI).toFixed(0); };
   let barClear = null; if (out.diag && out.diag.bar) { const b = out.diag.bar; let m = 9; for (let i = 0; i < body.geometry.attributes.position.count; i++) { body.getVertexPosition(i, v); v.applyMatrix4(body.matrixWorld); if (Math.abs(v.x) < 0.1) { const dd = Math.hypot(v.y - b.y, v.z - b.z); if (dd < m) m = dd; } } barClear = +(m - b.r).toFixed(3); }
-  report.push({ id, t, barClear, minY: +minY.toFixed(3), elbowL: ang('upperarm_l', 'lowerarm_l', 'hand_l'), elbowR: ang('upperarm_r', 'lowerarm_r', 'hand_r'), kneeL: ang('thigh_l', 'calf_l', 'foot_l'), reach: out.diag ? out.diag.reach : null });
+  report.push({ id, t, barClear, minAt, minBone, minY: +minY.toFixed(3), elbowL: ang('upperarm_l', 'lowerarm_l', 'hand_l'), elbowR: ang('upperarm_r', 'lowerarm_r', 'hand_r'), kneeL: ang('thigh_l', 'calf_l', 'foot_l'), reach: out.diag ? out.diag.reach : null });
   const cam = new THREE.PerspectiveCamera(30, W / H, 0.05, 40), c = def.camera, ay = yaw * Math.PI / 180, ap = pitch * Math.PI / 180, d = dist || c.dist, T = new THREE.Vector3(tx ?? 0, ty ?? c.ty, tz ?? c.tz ?? 0);
   cam.position.set(T.x + Math.sin(ay) * Math.cos(ap) * d, T.y + Math.sin(ap) * d, T.z + Math.cos(ay) * Math.cos(ap) * d); cam.lookAt(T);
   if (pitch > 80) { cam.up.set(-Math.sin(ay), 0, -Math.cos(ay)); cam.lookAt(T); }
