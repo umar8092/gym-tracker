@@ -1,23 +1,42 @@
-/* Network-first service worker: always try the network so updates show up, fall back to the cache when offline.
-   Bump VERSION when adding files to SHELL. */
-var VERSION = 'gym-v18';
-var SHELL = ['./', 'index.html', 'css/app.css', 'css/fonts.css', 'js/data.js', 'js/store.js', 'js/sync.js', 'js/stats.js', 'js/charts.js', 'js/muscle.js', 'js/machines.js', 'js/engine.js', 'js/app.js', 'js/figure3d.js', 'js/fig/rig.js', 'js/fig/props.js', 'js/fig/poses.js', 'js/fig/muscles.js', 'js/fig/exercises.js', 'js/fig/exercises2.js', 'js/fig/machines3d.js', 'vendor/three.module.min.js', 'vendor/addons/loaders/GLTFLoader.js', 'vendor/addons/utils/BufferGeometryUtils.js', 'vendor/addons/utils/SkeletonUtils.js', 'vendor/addons/environments/RoomEnvironment.js', 'models/Superhero_Male_FullBody.gltf', 'models/Superhero_Male_FullBody.bin', 'models/T_Superhero_Male_Light.jpg', 'models/T_Superhero_Male_Normal.jpg', 'models/T_Superhero_Male_Roughness.jpg', 'models/T_Eye_Brown.png', 'models/T_Eye_Normal.png', 'models/T_Hair_1_BaseColor.jpg', 'models/T_Hair_1_Normal.jpg',
-  'fonts/Anton-400.ttf', 'fonts/Archivo-600.ttf', 'fonts/Archivo-800.ttf', 'manifest.webmanifest', 'img/ex/arnold-press.webp', 'img/ex/barbell-bench-press.webp', 'img/ex/barbell-curl.webp', 'img/ex/barbell-row.webp', 'img/ex/barbell-squat.webp', 'img/ex/bent-over-rear-fly.webp', 'img/ex/cable-pushdown.webp', 'img/ex/close-grip-bench.webp', 'img/ex/dumbbell-calf-raise.webp', 'img/ex/dumbbell-fly.webp', 'img/ex/dumbbell-walking-lunge.webp', 'img/ex/front-raise.webp', 'img/ex/hammer-curl.webp', 'img/ex/incline-dumbbell-press.webp', 'img/ex/lat-pulldown.webp', 'img/ex/lateral-raise.webp', 'img/ex/leg-curl.webp', 'img/ex/leg-press.webp', 'img/ex/lying-triceps-extension.webp', 'img/ex/machine-chest-press.webp', 'img/ex/one-arm-dumbbell-row.webp', 'img/ex/overhead-press.webp', 'img/ex/overhead-triceps-extension.webp', 'img/ex/pull-up.webp', 'img/ex/push-up.webp', 'img/ex/romanian-deadlift.webp', 'img/ex/seated-cable-row.webp', 'icons/icon-192.png', 'icons/icon-512.png'];
+/* Service worker.
+   Small precache (the app shell), everything else is saved the first time it is used, so a slow connection never has to download
+   the 3D files unless a form guide is opened. Strategy per file type:
+   - pages, scripts, styles: network first but with a short deadline, then the saved copy (so updates arrive and a bad connection does not hang)
+   - fonts, images, models, 3D libraries, icons: saved copy first (they only change when the file name or version does)
+   Bump VERSION whenever any of these files change. */
+var VERSION = 'gym-v19';       // code: pages, scripts, styles. Bump with every release.
+var ASSETS = 'gym-assets-1';   // fonts, images, models, 3D libraries. Bump only when one of those files changes (so users do not re-download the 3D files on every release).
+var SHELL = ['./', 'index.html', 'css/app.css', 'css/fonts.css', 'js/data.js', 'js/store.js', 'js/sync.js', 'js/stats.js', 'js/charts.js', 'js/machines.js', 'js/app.js',
+  'fonts/Anton-400.woff2', 'fonts/Archivo-600.woff2', 'fonts/Archivo-800.woff2', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon.svg', 'icons/favicon-32.png'];
+var STATIC = /\/(fonts|img|models|vendor|icons)\//;
+var DEADLINE = 3500;
 
 self.addEventListener('install', function (e) {
-  e.waitUntil(caches.open(VERSION).then(function (c) { return c.addAll(SHELL); }).then(function () { return self.skipWaiting(); }));
+  var code = SHELL.filter(function (f) { return !STATIC.test('/' + f); }), assets = SHELL.filter(function (f) { return STATIC.test('/' + f); });
+  e.waitUntil(Promise.all([caches.open(VERSION).then(function (c) { return c.addAll(code); }),
+    caches.open(ASSETS).then(function (c) { return Promise.all(assets.map(function (f) { return c.match(f).then(function (hit) { return hit || c.add(f); }); })); })]).then(function () { return self.skipWaiting(); }));
 });
 self.addEventListener('activate', function (e) {
   e.waitUntil(caches.keys().then(function (keys) {
-    return Promise.all(keys.filter(function (k) { return k !== VERSION; }).map(function (k) { return caches.delete(k); }));
+    // the asset cache survives releases; old code caches (and old asset caches) go
+    return Promise.all(keys.filter(function (k) { return k !== VERSION && k !== ASSETS; }).map(function (k) { return caches.delete(k); }));
   }).then(function () { return self.clients.claim(); }));
 });
+
+function save(req, res) { if (res && res.ok) { var copy = res.clone(), name = STATIC.test(new URL(req.url).pathname) ? ASSETS : VERSION; caches.open(name).then(function (c) { c.put(req, copy); }); } return res; }
+function fromCache(req) { return caches.match(req).then(function (hit) { return hit || caches.match('index.html'); }); }   // caches.match looks in every cache
+
 self.addEventListener('fetch', function (e) {
-  var req = e.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) { return; }
-  e.respondWith(fetch(req).then(function (res) {
-    var copy = res.clone();
-    caches.open(VERSION).then(function (c) { c.put(req, copy); });
-    return res;
-  }).catch(function () { return caches.match(req).then(function (hit) { return hit || caches.match('index.html'); }); }));
+  var req = e.request, url = new URL(req.url);
+  if (req.method !== 'GET' || url.origin !== location.origin) { return; }
+  if (STATIC.test(url.pathname)) {
+    e.respondWith(caches.match(req).then(function (hit) { return hit || fetch(req).then(function (res) { return save(req, res); }); }));
+    return;
+  }
+  // network first with a deadline
+  e.respondWith(new Promise(function (resolve) {
+    var settled = false, timer = setTimeout(function () { caches.match(req).then(function (hit) { if (hit && !settled) { settled = true; resolve(hit); } }); }, DEADLINE);
+    fetch(req).then(function (res) { clearTimeout(timer); if (!settled) { settled = true; resolve(save(req, res)); } else { save(req, res); } },
+      function () { clearTimeout(timer); if (!settled) { settled = true; resolve(fromCache(req)); } });
+  }));
 });

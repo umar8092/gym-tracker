@@ -22,6 +22,35 @@
   function weekStart(s) { var d = Store.parse(s), off = (d.getDay() + 6) % 7; return Store.addDays(s, -off); }
   function visibleEx(muscle) { return Data.exercisesFor(muscle).filter(function (e) { return !Store.isHidden(e.id); }); }
 
+  /* =========================================================  3D ON DEMAND  */
+  // The 3D engine, the model and its textures (about 1.8 MB) are only fetched when someone opens a form guide.
+  var Engine = window.Engine || { unmountAll: function () {}, redraw: function () {}, mount: function () {} };   // the old 2D engine is gone; calls stay harmless
+  var A3D = [["vendor/three.module.min.js", 691648], ["vendor/addons/loaders/GLTFLoader.js", 110273], ["vendor/addons/utils/BufferGeometryUtils.js", 31768], ["vendor/addons/utils/SkeletonUtils.js", 8802], ["vendor/addons/environments/RoomEnvironment.js", 3606], ["models/Superhero_Male_FullBody.gltf", 20897], ["models/Superhero_Male_FullBody.bin", 565116], ["models/T_Hair_1_Normal.jpg", 30983], ["models/T_Hair_1_BaseColor.jpg", 20631], ["models/T_Eye_Normal.png", 15099], ["models/T_Eye_Brown.png", 35958], ["models/T_Superhero_Male_Normal.jpg", 82577], ["models/T_Superhero_Male_Light.jpg", 43933], ["models/T_Superhero_Male_Roughness.jpg", 55418]];   // files the 3D guide needs, with their sizes, for the loading percentage
+  var p3d = null, subs3d = [];
+  function fetchCount(url, tick) {
+    return fetch(url).then(function (r) {
+      if (!r.ok) { throw new Error('HTTP ' + r.status); }
+      if (!r.body || !r.body.getReader) { return r.arrayBuffer().then(function (b) { tick(b.byteLength); }); }
+      var rd = r.body.getReader();
+      return (function pump() { return rd.read().then(function (x) { if (x.done) { return; } tick(x.value.length); return pump(); }); })();
+    });
+  }
+  function load3D(onProgress) {
+    if (window.Engine3D) { if (onProgress) { onProgress(1); } return Promise.resolve(); }
+    if (onProgress) { subs3d.push(onProgress); }
+    if (p3d) { return p3d; }
+    var total = 0, done = 0; A3D.forEach(function (a) { total += a[1]; });
+    var tick = function (n) { done += n; var f = Math.min(0.9, done / total * 0.9); subs3d.forEach(function (fn) { fn(f); }); };
+    p3d = Promise.all(A3D.map(function (a) { return fetchCount(a[0], tick); }))
+      .then(function () { subs3d.forEach(function (fn) { fn(0.92); }); return import(new URL('js/figure3d.js', document.baseURI).href); })
+      .then(function () { subs3d.forEach(function (fn) { fn(0.98); }); })
+      .catch(function (e) { p3d = null; subs3d = []; throw e; });
+    return p3d;
+  }
+  function loaderHTML() { return '<div class="load3d" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Loading the 3D figure"><b class="pct num">0%</b><span>Loading 3D figure</span><div class="lbar"><i></i></div><small>Only loaded when you open a guide. It is saved for next time.</small></div>'; }
+  function setLoader(el, f) { if (!el) { return; } var p = Math.round(f * 100); el.setAttribute('aria-valuenow', p); el.querySelector('.pct').textContent = p + '%'; el.querySelector('.lbar i').style.width = p + '%'; }
+  function saveData() { return !!(navigator.connection && navigator.connection.saveData); }
+
   /* =========================================================  TODAY  */
   var QUOTES = [
     'Small steps every day add up to big changes.',
@@ -146,7 +175,7 @@
   function bestSet(sets) { var b = null; sets.forEach(function (s) { if (!b || (s.kg > 0 || b.kg > 0 ? Stats.epley(s.kg, s.reps) > Stats.epley(b.kg, b.reps) : s.reps > b.reps)) { b = s; } }); return b; }
   function setText(s) { return s ? (s.kg > 0 ? s.reps + ' × ' + kgStr(s.kg) : s.reps + ' reps') : '—'; }
   function thumbHTML(ex, cls) {
-    return '<span class="thumb ' + (cls || '') + '">' + (ex.custom ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h18M6 7v10M18 7v10M9 9v6M15 9v6"/></svg>' : '<img src="img/ex/' + ex.id + '.webp" alt="" loading="lazy" decoding="async">') + '</span>';
+    return '<span class="thumb ' + (cls || '') + '">' + (ex.custom || saveData() ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h18M6 7v10M18 7v10M9 9v6M15 9v6"/></svg>' : '<img src="img/ex/' + ex.id + '.webp" alt="" loading="lazy" decoding="async">') + '</span>';
   }
   // result of the last fight against the one before it, as a chip: Won last / Draw / Lost last / Split / Rematch / Debut
   function lastResult(ex, t) {
@@ -689,7 +718,7 @@
       '<div class="fld" style="margin-top:8px"><label for="rq-x">Describe it</label><textarea id="rq-x" class="text-in" rows="3" maxlength="500" placeholder="e.g. Add cable fly for chest, or: show my weekly volume per muscle"></textarea></div>' +
       '<div class="btns" style="margin-top:10px"><button class="btn small" type="button" data-act="req-send">Open on GitHub</button><button class="link" type="button" data-act="req-copy">Copy text</button></div></div>';
     h += '<div class="sec"><h2>Install on your phone</h2><p class="sub">' + (window.__installEvt ? 'Add Gym Workout Tracker to your home screen so it opens like an app.' : /iPhone|iPad/.test(navigator.userAgent) ? 'In Safari tap the Share button, then Add to Home Screen.' : 'Open your browser menu and choose Install app or Add to Home screen.') + '</p>' + (window.__installEvt ? '<button class="btn small" type="button" data-act="install">Install</button>' : '') + '</div>';
-    h += '<div class="sec"><h2>Account</h2><p>Signed in as <b>' + esc(Store.user()) + '</b>.</p><p class="sub" id="sync-state">' + esc(syncText()) + '</p>' +
+    h += '<div class="sec"><h2>Account</h2><p>Signed in as <b>' + esc(Store.user()) + '</b>. <button class="link" type="button" data-act="copy-name">Copy</button></p><p class="small-note">This username is the only key to your workouts. Keep it somewhere safe and private: you need it to sign in on another phone, and anyone who knows it can open your data.</p><p class="sub" id="sync-state">' + esc(syncText()) + '</p>' +
       '<div class="btns"><button class="btn small" type="button" data-act="sync-now">Sync now</button><button class="link" type="button" data-act="switch-user">Switch user</button></div></div>';
     h += '<div class="sec"><h2>Your data</h2><p class="sub">Saved on this device and copied to the cloud when online. You can also export a backup file.</p>' +
       '<div class="btns"><button class="btn small" type="button" data-act="export">Export backup</button><label class="btn small" for="imp" style="cursor:pointer">Import backup</label><input id="imp" type="file" accept="application/json,.json" class="sr" data-f="import">' +
@@ -738,12 +767,80 @@
       default: return 'Not synced yet.';
     }
   }
+
+  /* ---------- sign-in: form, "remember it", loading ---------- */
+  var login = { step: 'form', name: '', check: null, res: '', ticker: 0, t0: 0 };
+  var WORDS_A = ['iron', 'steel', 'heavy', 'chalk', 'mighty', 'rapid', 'strong', 'titan', 'granite', 'atlas', 'savage', 'raging'], WORDS_B = ['wolf', 'bear', 'bull', 'lifter', 'plate', 'barbell', 'squat', 'rack', 'grind', 'beast', 'pump', 'tiger'];
+  function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
+  function digits(n) { var s = ''; while (n--) { s += Math.floor(Math.random() * 10); } return s; }
+  // three personal-looking names that fit the rules (3 to 20 letters, numbers, underscores) and are not guessable from a first name
+  function suggestNames() {
+    var out = [], tries = 0, mk = [function () { return pick(WORDS_A) + pick(WORDS_B) + digits(3); }, function () { return 'bodybuilder' + digits(3); }, function () { return 'ilove' + pick(['gym', 'lifting', 'squats', 'iron']) + digits(3); }, function () { return pick(WORDS_B) + '_' + pick(WORDS_A) + digits(2); }];
+    while (out.length < 3 && tries++ < 30) { var n = mk[Math.floor(Math.random() * mk.length)](); if (n.length <= 20 && out.indexOf(n) < 0 && !Store.knownUser(n)) { out.push(n); } }
+    return out;
+  }
+  function strength(n) {
+    if (n.length < 3) { return { cls: '', txt: '' }; }
+    if (n.length < 6) { return { cls: 'bad', txt: 'Easy to guess. Add more letters and a number.' }; }
+    if (n.length >= 8 && /\d/.test(n) && /[a-z]/.test(n)) { return { cls: 'good', txt: 'Hard to guess. Good.' }; }
+    return { cls: 'mid', txt: 'Add a number or a few more letters to make it harder to guess.' };
+  }
   function viewLogin() {
-    return '<h1>Who is training?</h1><p class="intro">Type a username. New here? Pick any name and it is created for you. It keeps your workouts separate from everyone else using this app. There is no password, so anyone who types the same name sees that log: choose something others will not guess.</p>' +
-      '<form data-form="login" novalidate><div class="fld" style="margin-top:22px"><label for="un">Username</label>' +
-      '<input id="un" class="text-in" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="20" required></div>' +
-      '<p class="muted" style="font-size:14px;margin-top:6px">Lowercase letters, numbers and underscores.</p>' +
-      '<p class="form-err" id="login-err" role="alert"></p><button class="btn primary block" type="submit" style="margin-top:14px">Continue</button></form>';
+    if (login.step === 'memo') { return viewMemo(); }
+    if (login.step === 'loading') { return viewLoading(); }
+    return '<h1>Who is training?</h1><p class="intro">Pick a username that is personal to you and hard to guess. It is the only key to your workouts: there is no password, so anyone who types the same name can see and change your data.</p>' +
+      '<form data-form="login" novalidate><div class="fld" style="margin-top:20px"><label for="un">Username</label><div class="un-wrap"><input id="un" class="text-in" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="20" required aria-describedby="un-hint un-str" value="' + esc(login.name) + '"><span class="un-count num" id="un-count" aria-live="polite">' + login.name.length + ' / 20</span></div></div>' +
+      '<p class="un-hint" id="un-hint">3 to 20 characters: lowercase letters, numbers and underscores.</p><p class="un-str" id="un-str"></p>' +
+      '<div class="un-sug"><span>Need an idea? Tap one:</span><div class="un-chips" id="un-chips">' + suggestNames().map(function (n) { return '<button type="button" class="chip" data-act="use-name" data-v="' + n + '">' + n + '</button>'; }).join('') + '</div><button type="button" class="link" data-act="shuffle-names">Show other ideas</button></div>' +
+      '<p class="form-err" id="login-err" role="alert"></p><button class="btn primary block" type="submit">Continue</button></form>' +
+      '<div class="note gold" style="margin-top:18px"><b class="t">Keep it private</b>Do not use your first name alone or something a friend could guess. Mix words and a number, like <b>ironwolf482</b>.</div>';
+  }
+  function viewMemo() {
+    return '<a class="crumb" href="#/" data-act="memo-back">Change username</a><h1>Remember this username</h1><p class="intro">This is your key. You need it to log in on another phone or after clearing your browser data, and nobody can recover it for you. Anyone who knows it can open your workouts, so keep it private.</p>' +
+      '<div class="memo-name" id="memo-name">' + esc(login.name) + '</div><div class="btns"><button class="btn small" type="button" data-act="copy-name">Copy it</button></div>' +
+      '<label class="memo-ok"><input type="checkbox" id="memo-ok"> I have saved it (in my notes app, or as a screenshot)</label>' +
+      '<p class="muted" id="memo-status" role="status" style="margin-top:10px"></p><p class="form-err" id="login-err" role="alert"></p>' +
+      '<button class="btn primary block" type="button" data-act="memo-go" id="memo-go" disabled>Continue</button><p style="margin-top:8px"><button class="link" type="button" data-act="offline-go" id="offline-go" hidden>Continue offline instead</button></p>';
+  }
+  function viewLoading() {
+    return '<h1>Loading your workouts</h1><p class="intro" id="load-msg">Getting <b>' + esc(login.name) + '</b> from the cloud. This can take a few seconds on a slow connection.</p><div class="wait-bar" role="progressbar" aria-label="Loading"><i></i></div><p class="num" id="load-timer" style="margin-top:10px;font-weight:800">0 s</p><button class="link" type="button" data-act="load-skip" id="load-skip" hidden>Skip and continue (it will sync in the background)</button>';
+  }
+  function loginTimer(fn) { clearInterval(login.ticker); login.t0 = Date.now(); login.ticker = setInterval(function () { fn(Math.floor((Date.now() - login.t0) / 1000)); }, 1000); fn(0); }
+  function loginReset() { clearInterval(login.ticker); login = { step: 'form', name: '', check: null, res: '', ticker: 0, t0: 0 }; }
+  // sign in on this device, then wait (visibly) for the first copy of the cloud data so a returning user does not land on an empty app
+  function finishSignIn(online) {
+    Store.signIn(login.name); login.step = 'loading'; render(true);
+    var done = false, finish = function () { if (done) { return; } done = true; clearInterval(login.ticker); loginReset(); location.hash = '#/'; render(); };
+    loginTimer(function (s) { var t = document.getElementById('load-timer'); if (t) { t.textContent = s + ' s'; } var k = document.getElementById('load-skip'); if (k && s >= 6) { k.hidden = false; } if (s >= 20) { finish(); } });
+    document.getElementById('load-skip').onclick = finish;
+    if (online === false) { finish(); return; }
+    Sync.run().then(finish, finish);
+  }
+  function updateUn(removed) {
+    var n = login.name, c = document.getElementById('un-count'), h = document.getElementById('un-hint'), st = document.getElementById('un-str'), r = strength(n);
+    if (c) { c.textContent = n.length + ' / 20' + (n.length >= 20 ? ' · limit reached' : ''); c.classList.toggle('limit', n.length >= 20); }
+    if (h) { h.textContent = removed ? 'Only lowercase letters, numbers and underscores. That character was left out.' : '3 to 20 characters: lowercase letters, numbers and underscores.'; h.classList.toggle('limit', !!removed); }
+    if (st) { st.textContent = r.txt; st.className = 'un-str ' + r.cls; }
+    var e = document.getElementById('login-err'); if (e) { e.textContent = ''; }
+  }
+  function memoStatus(s) {
+    var st = document.getElementById('memo-status'), off = document.getElementById('offline-go'), err = document.getElementById('login-err'), go = document.getElementById('memo-go');
+    if (!st) { return; }
+    if (login.res === '') { st.textContent = 'Checking the name with the cloud… ' + s + ' s' + (s >= 8 ? '. The connection is slow.' : ''); if (off) { off.hidden = s < 8; } }
+    else if (login.res === 'ok') { st.textContent = 'Name checked. You can continue.'; if (off) { off.hidden = true; } }
+    else { st.textContent = ''; if (off) { off.hidden = false; } if (err) { err.textContent = login.res === 'denied' ? 'The cloud refused that username. Go back and try another one.' : login.res === 'slow' ? 'The cloud did not answer in time.' : 'Could not reach the cloud.'; } if (go) { go.textContent = 'Try again'; } }
+  }
+  function startMemo(name) {
+    login.name = name; login.step = 'memo'; login.res = ''; login.wait = false;
+    login.check = Sync.check(name).then(function (r) { login.res = r; if (login.step !== 'memo') { return; } memoStatus(Math.floor((Date.now() - login.t0) / 1000)); if (login.wait) { memoContinue(); } });
+    render(true); loginTimer(memoStatus);
+  }
+  function memoContinue() {
+    var ok = document.getElementById('memo-ok'); if (!ok || !ok.checked) { return; }
+    if (login.res === 'ok') { finishSignIn(true); return; }
+    if (login.res === '') { login.wait = true; var g = document.getElementById('memo-go'); if (g) { g.disabled = true; g.textContent = 'Checking…'; } return; }
+    if (login.res === 'denied') { login.step = 'form'; render(true); var e2 = document.getElementById('login-err'); if (e2) { e2.textContent = 'The cloud refused that username. Try another one.'; } return; }
+    startMemo(login.name);   // offline, slow or error: try the check again
   }
   function viewSetup() {
     return '<h1>Welcome, ' + esc(Store.user()) + '</h1><p class="intro">Two numbers to start. You can change them later in the Plan tab.</p>' +
@@ -761,7 +858,7 @@
   }
   function render(keepScroll) {
     Engine.unmountAll(); if (window.Engine3D) { Engine3D.unmountAll(); }
-    var r = route(), gate = !Store.user() ? 'login' : Store.needsSetup() ? 'setup' : '';
+    var r = route(), gate = (!Store.user() || login.step === 'loading') ? 'login' : Store.needsSetup() ? 'setup' : '';
     document.body.classList.toggle('gated', !!gate); view.setAttribute('data-r', gate || r.name); clearInterval(quoteTimer);
     if (gate || r.name === 'summary') { Rest.hide(); }
     view.innerHTML = gate ? (gate === 'login' ? viewLogin() : viewSetup()) : views[r.name](r.arg);
@@ -833,6 +930,13 @@
         else if (navigator.clipboard) { navigator.clipboard.writeText(rt + ': ' + rbody).then(function () { toast('Copied'); }, function () { toast('Could not copy'); }); }
         break;
       case 'quote': nextQuote(); startQuotes(); break;
+      case 'use-name': var ui = document.getElementById('un'); ui.value = el.dataset.v; login.name = el.dataset.v; updateUn(false); ui.focus(); break;
+      case 'shuffle-names': document.getElementById('un-chips').innerHTML = suggestNames().map(function (n) { return '<button type="button" class="chip" data-act="use-name" data-v="' + n + '">' + n + '</button>'; }).join(''); break;
+      case 'memo-back': loginReset(); render(true); break;
+      case 'copy-name': if (navigator.clipboard) { navigator.clipboard.writeText(login.name || Store.user()).then(function () { toast('Username copied'); }, function () { toast('Could not copy'); }); } break;
+      case 'memo-go': memoContinue(); break;
+      case 'offline-go': finishSignIn(false); break;
+      case 'retry3d': var ldr = el.closest('.load3d'); if (ldr && ldr.__retry) { ldr.__retry(); } break;
       case 'share-week':
         var wtxt = weekSummaryText();
         if (navigator.share) { navigator.share({ text: wtxt }).catch(function () {}); } else if (navigator.clipboard) { navigator.clipboard.writeText(wtxt).then(function () { toast('Week summary copied'); }, function () { toast('Could not copy'); }); } else { toast('Sharing is not available here'); } break;
@@ -898,7 +1002,7 @@
         if (window.confirm('Erase all workouts and weights on this device? Your cloud copy comes back at the next sync.')) { Store.reset(); draft = {}; calState = null; render(); Sync.run().then(function () { render(); }); }
         break;
       case 'sync-now': Sync.run(); break;
-      case 'switch-user': Store.signOut(); draft = {}; calState = null; location.hash = '#/'; render(); break;
+      case 'switch-user': Store.signOut(); loginReset(); draft = {}; calState = null; location.hash = '#/'; render(); break;
     }
   });
 
@@ -912,6 +1016,7 @@
   }
 
   view.addEventListener('input', function (e) {
+    if (e.target.id === 'un') { var raw = e.target.value, clean = raw.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20); e.target.value = clean; login.name = clean; updateUn(raw.length > clean.length && raw.toLowerCase().replace(/[^a-z0-9_]/g, '').length < raw.length); return; }
     if (e.target.dataset && e.target.dataset.f === 'lib') { clearTimeout(libTimer); var qv = e.target.value; libTimer = setTimeout(function () { libSearch(qv); }, 350); return; }
     var f = e.target.dataset.f, secEl = e.target.closest('section.ex');
     if ((f === 'reps' || f === 'kg') && secEl) {
@@ -920,6 +1025,7 @@
     }
   });
   view.addEventListener('change', function (e) {
+    if (e.target.id === 'memo-ok') { var mg = document.getElementById('memo-go'); if (mg && !login.wait) { mg.disabled = !e.target.checked; } return; }
     var f = e.target.dataset.f;
     if (f === 'note') { Store.setNote(e.target.dataset.ex, e.target.value); var ne = view.querySelector('[data-note-for="' + e.target.dataset.ex + '"]'); if (ne) { var nt = Store.note(e.target.dataset.ex); ne.textContent = 'Note: ' + nt; ne.hidden = !nt; } return; }
     if (f === 'prog') { progSel = e.target.value; render(true); }
@@ -935,20 +1041,11 @@
     var f = e.target.dataset.form;
     if (f === 'login') {
       e.preventDefault();
-      var inp = document.getElementById('un'), err = document.getElementById('login-err'), btn = e.target.querySelector('button'), name = inp.value.trim().toLowerCase();
+      var name = document.getElementById('un').value.trim().toLowerCase(), err = document.getElementById('login-err');
       err.textContent = '';
       if (!/^[a-z0-9_]{3,20}$/.test(name)) { err.textContent = 'Use 3 to 20 lowercase letters, numbers or underscores.'; return; }
-      btn.disabled = true; btn.textContent = 'Checking...';
-      var go = function () {
-        Store.signIn(name);
-        Promise.race([Sync.run(), new Promise(function (r) { setTimeout(r, 6000); })]).then(function () { location.hash = '#/'; render(); });
-      };
-      if (Store.knownUser(name)) { go(); return; }
-      Sync.check(name).then(function (r) {
-        if (r === 'ok') { go(); return; }
-        btn.disabled = false; btn.textContent = 'Continue';
-        err.textContent = r === 'denied' ? 'The cloud refused that username. Try another one.' : r === 'offline' ? 'No connection. The first sign-in on a device needs internet.' : 'Could not reach the cloud. Try again in a moment.';
-      });
+      if (Store.knownUser(name)) { Store.signIn(name); loginReset(); location.hash = '#/'; render(); Sync.run().then(function () { render(true); }); return; }   // already on this device: open at once, sync in the background
+      startMemo(name);
     } else if (f === 'setup') {
       e.preventDefault();
       var now = num(document.getElementById('su-now').value), goal = num(document.getElementById('su-goal').value);
@@ -991,13 +1088,24 @@
   view.addEventListener('toggle', function (e) {
     var d = e.target;
     if (!d.matches || !d.matches('details.guide') || !d.open) { return; }
-    var ex = Data.byId[d.dataset.ex], fig = d.querySelector('.fig'), mbox = d.querySelector('.muscles');
-    if (mbox && ex && ex.mus) { showMuscle(mbox, mbox.dataset.view || ex.mus.view); }
-    if (ex && ex.fig && fig && !fig.__st) {
-      if (window.Engine3D && Engine3D.supports(ex)) { Engine3D.mount(fig, ex); }
-      else if (ex.fig.U) { var top = fig.querySelectorAll('.views button')[3]; if (top) { top.remove(); } Engine.mount(fig, ex.fig); }   // old 2D engine as a fallback (shoulders only)
-      else { fig.querySelector('.phase').textContent = '3D needs a newer browser or phone. The diagram and steps below still apply.'; }
+    var ex = Data.byId[d.dataset.ex], fig = d.querySelector('.fig'), mbox = d.querySelector('.muscles'), host = d.querySelector('.g-fig');
+    if (!ex || ex.custom || !fig || fig.__st) { return; }
+    var ld = null, retry = function () { open3D(); };
+    function open3D() {
+      if (ld && ld.parentNode) { ld.parentNode.removeChild(ld); }
+      if (!window.Engine3D && host) { host.insertAdjacentHTML('afterbegin', loaderHTML()); ld = host.querySelector('.load3d'); }
+      load3D(function (f) { setLoader(ld, f); }).then(function () {
+        if (!fig.__st) {
+          if (Engine3D.supports(ex)) { Engine3D.mount(fig, ex); }
+          else { fig.querySelector('.phase').textContent = '3D needs a newer browser or phone. The steps below still apply.'; }
+        }
+        if (mbox && ex.mus) { showMuscle(mbox, mbox.dataset.view || ex.mus.view); }
+        var tries = 0, wait = setInterval(function () { if ((fig.__st && fig.__st.ready) || ++tries > 150) { clearInterval(wait); if (ld && ld.parentNode) { ld.parentNode.removeChild(ld); } } }, 100);
+      }, function () {
+        if (ld) { ld.innerHTML = '<b class="pct">!</b><span>Could not load the 3D figure</span><small>Check your connection.</small><button class="btn small" type="button" data-act="retry3d">Try again</button>'; ld.__retry = retry; }
+      });
     }
+    open3D();
   }, true);
   window.addEventListener('hashchange', function () { render(); });
   document.addEventListener('click', function (e) { if (!e.target.closest('.kg-row')) { closeMenus(); } });
@@ -1007,6 +1115,7 @@
     ['sync-line', 'sync-state'].forEach(function (id) { var el = document.getElementById(id); if (el) { el.textContent = syncText(st); } });
   });
   render();
+  if (window.__bootDone) { window.__bootDone(); }
   if (Store.user()) { Sync.run(); }
-  window.__gym = { render: render };
+  window.__gym = { render: render, get login() { return login; } };
 })();

@@ -12,8 +12,15 @@
   /* ---------- auth (anonymous) ---------- */
   function readAuth() { try { return JSON.parse(localStorage.getItem(AUTH_KEY)) || {}; } catch (e) { return {}; } }
   function saveAuth(a) { try { localStorage.setItem(AUTH_KEY, JSON.stringify(a)); } catch (e) {} }
+  // every call has a deadline, so a hanging connection ends in an error the user can see instead of an endless wait
+  var TIMEOUT = 12000;
+  function tfetch(url, opts, ms) {
+    if (typeof AbortController === 'undefined') { return fetch(url, opts); }
+    var ac = new AbortController(), t = setTimeout(function () { ac.abort(); }, ms || TIMEOUT); opts = opts || {}; opts.signal = ac.signal;
+    return fetch(url, opts).then(function (r) { clearTimeout(t); return r; }, function (e) { clearTimeout(t); if (e && e.name === 'AbortError') { var te = new TypeError('timeout'); te.timeout = true; throw te; } throw e; });
+  }
   function post(url, body, form) {
-    return fetch(url, { method: 'POST', headers: { 'Content-Type': form ? 'application/x-www-form-urlencoded' : 'application/json' }, body: body }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); });
+    return tfetch(url, { method: 'POST', headers: { 'Content-Type': form ? 'application/x-www-form-urlencoded' : 'application/json' }, body: body }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); });
   }
   function signUp() {
     return post('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + KEY, JSON.stringify({ returnSecureToken: true })).then(function (r) {
@@ -37,7 +44,7 @@
   function api(path, opts, retried) {
     return token(retried).then(function (t) {
       opts = opts || {}; opts.headers = Object.assign({ Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }, opts.headers);
-      return fetch(BASE + path, opts);
+      return tfetch(BASE + path, opts);
     }).then(function (r) {
       if (r.status === 401 && !retried) { return api(path, opts, true); }
       return r;
@@ -134,10 +141,10 @@
     onStatus: function (f) { listeners.push(f); },
     // a friend's recent sets (updated in the last 30 days), read only. Costs one cloud read per set returned, so only called on a button press.
     peek: function (name) { return queryAll(name, 'logs', Date.now() - 30 * 864e5).then(function (r) { return r.rows.filter(function (l) { return !l.del; }); }); },
-    // is this username allowed? resolves 'ok' | 'denied' | 'offline'
+    // is this username allowed? resolves 'ok' | 'denied' | 'offline' | 'slow' (no answer within the deadline)
     check: function (name) {
       return api('/users/' + name + '/meta/settings').then(function (r) { return r.status === 403 ? 'denied' : (r.ok || r.status === 404) ? 'ok' : 'error'; })
-        .catch(function () { return 'offline'; });
+        .catch(function (e) { return e && e.timeout ? 'slow' : 'offline'; });
     }
   };
   Store.onWrite(function () { if (Store.user()) { schedule(); } });

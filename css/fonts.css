@@ -1,3 +1,4 @@
-@font-face { font-family: "Anton"; font-style: normal; font-weight: 400; font-display: swap; src: url("../fonts/Anton-400.ttf") format("truetype"); }
-@font-face { font-family: "Archivo"; font-style: normal; font-weight: 600; font-display: swap; src: url("../fonts/Archivo-600.ttf") format("truetype"); }
-@font-face { font-family: "Archivo"; font-style: normal; font-weight: 800; font-display: swap; src: url("../fonts/Archivo-800.ttf") format("truetype"); }
+/* latin subset, woff2. swap = text shows at once in the fallback font, no blocking */
+@font-face { font-family: "Anton"; font-style: normal; font-weight: 400; font-display: swap; src: url("../fonts/Anton-400.woff2") format("woff2"); }
+@font-face { font-family: "Archivo"; font-style: normal; font-weight: 600; font-display: swap; src: url("../fonts/Archivo-600.woff2") format("woff2"); }
+@font-face { font-family: "Archivo"; font-style: normal; font-weight: 800; font-display: swap; src: url("../fonts/Archivo-800.woff2") format("woff2"); }

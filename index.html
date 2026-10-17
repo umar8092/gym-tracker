@@ -4,14 +4,38 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Gym Workout Tracker</title>
-<meta name="description" content="A personal gym log: pick today's muscle, log sets and kilograms, and watch your progress.">
+<meta name="description" content="Log every round, beat last time's you, and watch your progress. A free gym workout tracker with 3D form guides for 27 exercises. Works offline.">
+<link rel="canonical" href="https://umar8092.github.io/gym-tracker/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Gym Workout Tracker">
+<meta property="og:title" content="Gym Workout Tracker">
+<meta property="og:description" content="Log every round, beat last time's you. Free, works offline, with rotatable 3D form guides for 27 exercises.">
+<meta property="og:url" content="https://umar8092.github.io/gym-tracker/">
+<meta property="og:image" content="https://umar8092.github.io/gym-tracker/img/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Gym Workout Tracker: your workout as a fight card, you against last time's you">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Gym Workout Tracker">
+<meta name="twitter:description" content="Log every round, beat last time's you. Free, works offline, with 3D form guides.">
+<meta name="twitter:image" content="https://umar8092.github.io/gym-tracker/img/og.png">
 <meta name="theme-color" content="#0A0A0B">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='5' fill='%230A0A0B'/%3E%3Crect x='4' y='4' width='5' height='24' fill='%23E5202E'/%3E%3Cpath d='M13 16h14M16 11v10M24 11v10' stroke='white' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="icon" href="icons/favicon-32.png" type="image/png" sizes="32x32">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Gym Workout">
-<link rel="preload" href="fonts/Anton-400.ttf" as="font" type="font/ttf" crossorigin>
+<link rel="preload" href="fonts/Anton-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/Archivo-600.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+#boot{position:fixed;inset:0;z-index:100;background:#0A0A0B;color:#F4F4F2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;font:800 12px/1.4 system-ui,sans-serif;letter-spacing:.2em;text-transform:uppercase;transition:opacity .25s}
+#boot.off{opacity:0;pointer-events:none}
+#boot .m{display:flex;align-items:center;gap:12px;font:400 34px/1 Impact,"Arial Narrow",sans-serif;letter-spacing:.04em}
+#boot .m i{width:12px;height:34px;background:#E5202E;display:block}
+#boot .b{width:200px;height:3px;background:#2C2C31;overflow:hidden}#boot .b i{display:block;height:100%;width:0;background:#E5202E;transition:width .2s}
+#boot-n{font-variant-numeric:tabular-nums}#boot-slow{opacity:.7;letter-spacing:.1em;text-transform:none;font-weight:600;max-width:260px;text-align:center}
+</style>
 <link rel="stylesheet" href="css/fonts.css">
 <link rel="stylesheet" href="css/app.css">
 <script>
@@ -21,6 +45,7 @@
 <script>window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); window.__installEvt = e; });</script>
 </head>
 <body>
+<div id="boot" role="status" aria-live="polite"><div class="m"><i></i>GYM WORKOUT TRACKER</div><div class="b"><i id="boot-i"></i></div><span id="boot-n">0%</span><span id="boot-slow" hidden></span></div>
 <nav class="tabs" aria-label="Main">
   <a class="brand" href="#/" aria-label="Gym Workout Tracker home"></a>
   <div class="tabs-in">
@@ -35,17 +60,21 @@
 <div class="rest" id="rest" hidden role="timer"><span id="rest-t"></span><button type="button" data-rest="add">+15 s</button><button type="button" data-rest="skip">Skip</button></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+<script>
+// minimal loading screen: counts the app files as they arrive, and says so if the connection is slow
+var __bootN = 0, __bootT = 7, __bootStart = Date.now();
+function __boot() { __bootN++; var p = Math.min(99, Math.round(__bootN / __bootT * 100)), i = document.getElementById('boot-i'), n = document.getElementById('boot-n'); if (i) { i.style.width = p + '%'; } if (n) { n.textContent = p + '%'; } }
+function __bootDone() { var b = document.getElementById('boot'); if (b) { b.className = 'off'; setTimeout(function () { if (b.parentNode) { b.parentNode.removeChild(b); } }, 400); } clearInterval(window.__bootTick); }
+window.__bootTick = setInterval(function () { var s = Math.round((Date.now() - __bootStart) / 1000), el = document.getElementById('boot-slow'); if (el && s >= 6) { el.hidden = false; el.textContent = 'Slow connection, still loading (' + s + ' s). Your data stays on this device.'; } }, 1000);
+</script>
 <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js","three/addons/":"./vendor/addons/"}}</script>
-<script src="js/data.js"></script>
-<script src="js/store.js"></script>
-<script src="js/sync.js"></script>
-<script src="js/stats.js"></script>
-<script src="js/charts.js"></script>
-<script src="js/muscle.js"></script>
-<script src="js/machines.js"></script>
-<script src="js/engine.js"></script>
-<script src="js/app.js"></script>
-<script type="module" src="js/figure3d.js"></script>
+<script defer src="js/data.js" onload="__boot()"></script>
+<script defer src="js/store.js" onload="__boot()"></script>
+<script defer src="js/sync.js" onload="__boot()"></script>
+<script defer src="js/stats.js" onload="__boot()"></script>
+<script defer src="js/charts.js" onload="__boot()"></script>
+<script defer src="js/machines.js" onload="__boot()"></script>
+<script defer src="js/app.js" onload="__boot()"></script>
 <script>if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) { navigator.serviceWorker.register("sw.js").catch(function () {}); }</script>
 </body>
 </html>

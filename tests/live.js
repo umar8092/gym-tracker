@@ -25,13 +25,13 @@ const call = (t, path, body, method = 'POST') => fetch(BASE + path, { method, he
   async function dev() { const c = await b.newContext({ viewport: { width: 390, height: 844 } }); const p = await c.newPage(); p.on('pageerror', e => fl.push(e.message)); p.on('console', m => { if (m.type() === 'error' && !/fonts\.g|40[34]/.test(m.text())) fl.push(m.text()); }); return p; }
   const synced = p => p.waitForFunction(() => Sync.status().state === 'synced', null, { timeout: 15000 }).catch(() => {});
   const ui = 'zz_ui_' + Math.random().toString(36).slice(2, 8);
-  const A = await dev(); await A.goto(URL + '#/'); await A.fill('#un', ui); await A.click('form[data-form="login"] button'); await A.waitForSelector('form[data-form="setup"]', { timeout: 15000 }).catch(() => {});
+  const A = await dev(); await A.goto(URL + '#/'); await A.fill('#un', ui); await A.click('form[data-form="login"] button[type="submit"]'); await A.check('#memo-ok'); await A.click('#memo-go'); await A.waitForSelector('form[data-form="setup"]', { timeout: 15000 }).catch(() => {});
   ok(await A.locator('form[data-form="setup"]').count() === 1, 'real cloud: new username reaches the setup screen');
   await A.fill('#su-now', '90'); await A.fill('#su-goal', '80'); await A.click('form[data-form="setup"] button');
   await A.goto(URL + '#/m/shoulders'); const s = A.locator('section.ex').first(); await s.locator('[data-act="kgset"][data-v="10"]').first().click(); await s.locator('[data-act="log"]').click();
   await A.waitForTimeout(2500); await synced(A);
   ok(await A.evaluate(() => Sync.status().state) === 'synced', 'real cloud: device A synced without errors');
-  const B = await dev(); await B.goto(URL + '#/'); await B.fill('#un', ui); await B.click('form[data-form="login"] button'); await B.waitForTimeout(3500); await synced(B);
+  const B = await dev(); await B.goto(URL + '#/'); await B.fill('#un', ui); await B.click('form[data-form="login"] button[type="submit"]'); await B.check('#memo-ok'); await B.click('#memo-go'); await B.waitForTimeout(3500); await synced(B);
   ok(await B.locator('form[data-form="setup"]').count() === 0, 'real cloud: second device skips setup');
   ok(await B.evaluate(() => Store.allLogs().length) === 1, 'real cloud: second device received the set');
   fl.length && fails.push(...fl);

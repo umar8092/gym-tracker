@@ -11,7 +11,11 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
     p.on('console', m => { if (m.type() === 'error' && !/fonts\.g|403|404|net::ERR/.test(m.text())) fails.push('console ' + m.text()); });
     return { ctx, p };
   }
-  const login = async (p, name) => { await p.goto(URL + '#/'); await p.fill('#un', name); await p.click('form[data-form="login"] button'); await p.waitForTimeout(700); };
+  const login = async (p, name) => {
+    await p.goto(URL + '#/'); await p.fill('#un', name); await p.click('form[data-form="login"] button[type="submit"]');
+    try { await p.waitForSelector('#memo-ok', { timeout: 1500 }); await p.check('#memo-ok'); await p.click('#memo-go'); } catch (e) { /* a name already on this device skips the remember step */ }
+    await p.waitForTimeout(700);
+  };
   const synced = p => p.waitForFunction(() => Sync.status().state === 'synced', null, { timeout: 8000 }).catch(() => {});
   const setsToday = p => p.evaluate(() => Store.allLogs().length);
   const logSet = async (p, kg) => { await p.goto(URL + '#/m/shoulders'); const s = p.locator('section.ex').first(); await s.locator(`[data-act="kgset"][data-v="${kg}"]`).first().click(); await s.locator('[data-act="log"]').click(); };
