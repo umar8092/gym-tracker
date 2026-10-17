@@ -28,6 +28,10 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
   await ex.locator('details.guide:not(.hist) summary').click();
   page.once('dialog', d => d.accept()); await ex.locator('[data-act="del-custom"]').click(); await page.waitForTimeout(300);
   ok(await page.locator('section.ex', { hasText: 'Cable crossover' }).count() === 0, 'custom exercise can be deleted');
+  // warm-up ramp and editing a past set (bench seeded today only, so use the history of push-up logged on a past Wednesday above)
+  await page.goto(URL + '#/m/chest'); await page.waitForTimeout(300);
+  const bs = page.locator('section.ex').first(); await bs.locator('[data-f="kg"]').fill('60'); await bs.locator('[data-act="warm"]').click();
+  ok((await bs.locator('.warmup').textContent()).includes('8 × 30 kg, 5 × 42.5 kg, 3 × 50 kg'), 'warm-up ramp shows for 60 kg');
   const kinds = await page.evaluate(() => { // a Monday 3 weeks ago: missed alone, made up once chest is trained on Wednesday
     let d = new Date(); d.setDate(d.getDate() - 21); while (d.getDay() !== 1) d.setDate(d.getDate() - 1);
     const mon = Store.ymd(d), wed = Store.addDays(mon, 2), a = Store.dayInfo(mon).kind;

@@ -66,6 +66,9 @@
       var t = now();
       db.logs.push({ id: uid(), d: date, m: muscle, e: exId, reps: reps, kg: kg, ts: t, u: t, dirty: true }); wrote();
     },
+    updateSet: function (id, reps, kg) {
+      db.logs.forEach(function (l) { if (l.id === id) { l.reps = reps; l.kg = kg; l.u = now(); l.dirty = true; } }); wrote();
+    },
     removeSet: function (id) {
       db.logs.forEach(function (l) { if (l.id === id) { l.del = true; l.u = now(); l.dirty = true; } }); wrote();
     },

@@ -70,4 +70,9 @@ t('setsByGroup: counts inside the range only', () => {
   const logs = [L('2026-01-05', 'a', 8, 10), L('2026-01-06', 'a', 8, 10), L('2026-01-06', 'b', 8, 10), L('2026-01-20', 'a', 8, 10), L('2026-01-06', 'zz', 8, 10)];
   assert.deepStrictEqual(S.setsByGroup(logs, { a: 'chest', b: 'back' }, '2026-01-05', '2026-01-11'), { chest: 2, back: 1 });
 });
+t('warmup ramp: rounds to 2.5, skips tiny or duplicate sets', () => {
+  assert.deepStrictEqual(S.warmup(60), [{ kg: 30, reps: 8 }, { kg: 42.5, reps: 5 }, { kg: 50, reps: 3 }]);
+  assert.deepStrictEqual(S.warmup(10), [{ kg: 5, reps: 8 }, { kg: 7.5, reps: 5 }]);
+  assert.deepStrictEqual(S.warmup(0), []);
+});
 console.log(`\n${n} stats tests OK`);

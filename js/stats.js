@@ -139,6 +139,13 @@
     return out;
   }
 
-  var Stats = { epley: epley, kgText: kgText, summarize: summarize, sessions: sessions, inRange: inRange, setDelta: setDelta, compare: compare, progress: progress, prFor: prFor, PR_TEXT: PR_TEXT, records: records, target: target, plates: plates, trend: trend, setsByGroup: setsByGroup };
+  // warm-up ramp toward the first working weight: ~50%, 70%, 85% of it, in 2.5 kg steps, only sets that are lighter than the last and at least 5 kg
+  function warmup(workKg) {
+    var out = [], last = 0;
+    [[0.5, 8], [0.7, 5], [0.85, 3]].forEach(function (x) { var kg = Math.round(workKg * x[0] / 2.5) * 2.5; if (kg >= 5 && kg > last && kg < workKg) { out.push({ kg: kg, reps: x[1] }); last = kg; } });
+    return out;
+  }
+
+  var Stats = { epley: epley, kgText: kgText, summarize: summarize, sessions: sessions, inRange: inRange, setDelta: setDelta, compare: compare, progress: progress, prFor: prFor, PR_TEXT: PR_TEXT, records: records, target: target, plates: plates, trend: trend, warmup: warmup, setsByGroup: setsByGroup };
   if (typeof module !== 'undefined') { module.exports = Stats; } else { window.Stats = Stats; }
 })();

@@ -33,7 +33,7 @@ const URL = process.env.URL || 'http://localhost:8765/index.html', OUT = '/tmp/g
   await bench.locator('[data-act="plates"]').click(); await bench.locator('[data-f="kg"]').fill('100'); await bench.locator('[data-f="kg"]').dispatchEvent('input');
   await bench.locator('[data-act="kg+"]').click(); await bench.locator('[data-act="kg-"]').click();
   ok((await bench.locator('.plates').textContent()).includes('each side 1 × 25 + 1 × 15'), 'plate calculator: 100 kg = 25 + 15 per side');
-  await bench.locator('details.hist summary').click();
+  await bench.locator('details.hist > summary').click();
   ok((await bench.locator('.hist-list li').first().textContent()).includes('9 × 60'), 'history lists last session');
   ok(await bench.locator('.hist-list li .vd.up').count() >= 1, 'history shows an Up verdict for the better session');
   await bench.locator('[data-f="note"]').fill('Seat 4, wide grip'); await bench.locator('[data-f="note"]').dispatchEvent('change');

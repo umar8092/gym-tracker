@@ -427,3 +427,10 @@ svg.ar { width: 10px; height: 10px; fill: currentColor; flex: none; }
 }
 .btn:not(.primary) { color: var(--ink); }
 @media (min-width: 1000px) { main[data-r="m"] .fig { max-width: 520px; } main[data-r="m"] section.ex { margin-top: 8px; } }
+
+.edit-day { margin-top: 6px; grid-column: 1 / -1; }
+.edit-day summary { cursor: pointer; color: var(--accent); font-size: 14px; min-height: 32px; display: flex; align-items: center; }
+.edit-sets { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px; }
+.edit-sets li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.edit-sets .text-in { width: 76px; min-height: 44px; text-align: center; }
+.warmup { margin-top: 8px; }

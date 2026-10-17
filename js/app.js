@@ -146,6 +146,8 @@
     return h + '<p class="pl-text"><b>' + kgStr(kg) + ' kg total:</b> each side ' + side + '.' + (r.exact ? '' : ' The closest you can load with standard plates is ' + kgStr(r.achieved) + ' kg.') + '</p>';
   }
 
+  function dr_kg(sec) { var i = sec.querySelector('[data-f="kg"]'); return i ? i.value : '0'; }
+
   function historyHTML(ex) {
     var today = Store.today(), ss = Stats.sessions(ex.id, exLogs(ex.id)).filter(function (x) { return x.date !== today; });
     var h = '<div class="fld"><label for="n-' + ex.id + '">Note for this exercise (seat, grip, settings)</label><input id="n-' + ex.id + '" class="text-in" type="text" maxlength="140" data-f="note" data-ex="' + ex.id + '" value="' + esc(Store.note(ex.id)) + '"></div>';
@@ -154,7 +156,10 @@
     ss.slice(-4).reverse().forEach(function (x, i) {
       var idx = ss.length - 1 - i, prev = ss[idx - 1], cmp = prev ? Stats.compare(x, prev) : null;
       h += '<li><span class="hd">' + shortDate(x.date) + '</span><span class="hs num">' + x.sets.map(function (q) { return q.reps + ' × ' + kgStr(q.kg); }).join(', ') + ' kg</span>' +
-        (cmp ? '<span class="vd ' + cmp.verdict + '">' + arrow(cmp.verdict) + VLABEL[cmp.verdict] + '</span>' : '<span class="vd same">First</span>') + '</li>';
+        (cmp ? '<span class="vd ' + cmp.verdict + '">' + arrow(cmp.verdict) + VLABEL[cmp.verdict] + '</span>' : '<span class="vd same">First</span>') +
+        '<details class="edit-day"><summary>Edit sets</summary><ul class="edit-sets">' + x.sets.map(function (q) {
+          return '<li><input class="text-in num" type="number" inputmode="numeric" min="1" max="100" data-f="er" value="' + q.reps + '" aria-label="Reps"> × <input class="text-in num" type="number" inputmode="decimal" step="0.5" min="0" max="500" data-f="ek" value="' + kgStr(q.kg) + '" aria-label="Kg"> kg ' +
+            '<button class="btn small" type="button" data-act="set-save" data-id="' + q.id + '">Save</button><button class="link" type="button" data-act="set-del" data-id="' + q.id + '">Delete</button></li>'; }).join('') + '</ul></details></li>';
     });
     h += '</ul>';
     if (ss.length >= 3) {
@@ -200,7 +205,8 @@
     var extra = '';
     if (last && sets.length < last.sets.length) { extra += '<button type="button" class="link" data-act="repeat">Repeat last time (' + (last.sets.length - sets.length) + ' more ' + (last.sets.length - sets.length === 1 ? 'set' : 'sets') + ')</button>'; }
     if (ex.equip === 'Barbell') { extra += '<button type="button" class="link" data-act="plates">Plates</button>'; }
-    if (extra) { h += '<div class="extras">' + extra + '</div><div class="plates" hidden></div>'; }
+    if (ex.equip !== 'Bodyweight') { extra += '<button type="button" class="link" data-act="warm">Warm-up</button>'; }
+    if (extra) { h += '<div class="extras">' + extra + '</div><div class="plates" hidden></div><div class="warmup" hidden></div>'; }
     return h;
   }
 
@@ -573,6 +579,18 @@
         var lt = Store.lastSession(exId, Store.today()), have = Store.setsFor(Store.today(), exId).length, exr = Data.byId[exId], added = 0;
         if (lt) { lt.sets.slice(have).forEach(function (st) { Store.addSet(Store.today(), exr.muscle, exId, st.reps, st.kg); added++; }); }
         toast(added + (added === 1 ? ' set' : ' sets') + ' logged like last time. Remove any that differ.'); refreshLogger(exId); break;
+      case 'warm':
+        var wp = secEl.querySelector(".warmup"); wp.hidden = !wp.hidden;
+        if (!wp.hidden) {
+          var wk = num(dr_kg(secEl)), ramp = Stats.warmup(wk);
+          wp.innerHTML = ramp.length ? '<p class="pl-text"><b>Warm-up for ' + kgStr(wk) + ' kg:</b> ' + ramp.map(function (r) { return r.reps + ' × ' + kgStr(r.kg) + ' kg'; }).join(', ') + '. Rest about 60 seconds between them, then start your working sets. Warm-ups are not logged.</p>' : '<p class="pl-text">Set the kg for your first working set above and the warm-up ramp appears here. Too light to need one under 10 kg.</p>';
+        } break;
+      case 'set-save':
+        var rowEl = el.closest('li'), nr = num(rowEl.querySelector('[data-f="er"]').value), nk = num(rowEl.querySelector('[data-f="ek"]').value);
+        if (!(nr >= 1 && nr <= 100) || !(nk >= 0 && nk <= 500)) { toast('Reps 1 to 100, kg 0 to 500'); break; }
+        Store.updateSet(el.dataset.id, nr, nk); toast('Set updated'); render(true); break;
+      case 'set-del':
+        if (window.confirm('Delete this set?')) { Store.removeSet(el.dataset.id); toast('Set deleted'); render(true); } break;
       case 'plates':
         var panel = secEl.querySelector('.plates'); panel.hidden = !panel.hidden; if (!panel.hidden) { panel.innerHTML = platesHTML(exId); } break;
       case 'bar':
