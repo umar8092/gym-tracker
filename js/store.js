@@ -15,7 +15,7 @@
   try { user = localStorage.getItem(USER_KEY) || ''; } catch (e) { persistent = false; }
 
   function fresh() {
-    return { profile: { startKg: null, goalKg: null, startDate: ymd(new Date()) }, weights: [], logs: [], hidden: {}, settings: { u: 0, dirty: false }, pull: { logs: 0, weights: 0 } };
+    return { profile: { startKg: null, goalKg: null, startDate: ymd(new Date()) }, weights: [], logs: [], hidden: {}, notes: {}, settings: { u: 0, dirty: false }, pull: { logs: 0, weights: 0 } };
   }
   function normalize(o) {
     var d = fresh(); for (var k in d) { if (!(k in o)) { o[k] = d[k]; } }
@@ -81,6 +81,9 @@
 
     /* ---- plan filter ---- */
     isHidden: function (id) { return !!db.hidden[id]; },
+    // short per-exercise notes (seat height, grip...). Kept small: they travel inside the settings document.
+    note: function (exId) { return db.notes[exId] || ''; },
+    setNote: function (exId, text) { text = String(text).trim().slice(0, 140); if (text) { db.notes[exId] = text; } else { delete db.notes[exId]; } touchSettings(); wrote(); },
     setHidden: function (id, hide) { if (hide) { db.hidden[id] = true; } else { delete db.hidden[id]; } touchSettings(); wrote(); },
 
     /* ---- body weight ---- */
@@ -136,7 +139,7 @@
       return {
         logs: db.logs.filter(function (l) { return l.dirty; }).map(function (l) { return Object.assign({}, l); }),
         weights: db.weights.filter(function (w) { return w.dirty; }).map(function (w) { return Object.assign({}, w); }),
-        settings: db.settings.dirty ? { u: db.settings.u, profile: db.profile, hidden: db.hidden } : null
+        settings: db.settings.dirty ? { u: db.settings.u, profile: db.profile, hidden: db.hidden, notes: db.notes } : null
       };
     },
     ack: function (sent) {
@@ -161,7 +164,7 @@
         else if (r.u > w.u) { w.kg = r.kg; w.u = r.u; w.dirty = false; changed = true; }
       });
       if (remote.settings && remote.settings.u > db.settings.u) {
-        db.profile = Object.assign(db.profile, remote.settings.profile); db.hidden = remote.settings.hidden || {};
+        db.profile = Object.assign(db.profile, remote.settings.profile); db.hidden = remote.settings.hidden || {}; db.notes = remote.settings.notes || {};
         db.settings = { u: remote.settings.u, dirty: false }; changed = true;
       } else if (!remote.settings && db.settings.u === 0 && !Store.needsSetup()) { touchSettings(); }
       if (remote.cursor) { db.pull = remote.cursor; }

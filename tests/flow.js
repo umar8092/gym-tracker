@@ -34,9 +34,9 @@ const OUT = '/tmp/gt-shots', URL = 'http://localhost:8765/index.html';
   await page.reload();
   assert(await page.locator('section.ex').first().locator('.sets li').count() === 2, 'sets survive reload');
   // open each form guide and take figure shots
-  const n = await page.locator('details.guide').count();
+  const n = await page.locator('details.guide:not(.hist)').count();
   for (let i = 0; i < n; i++) {
-    const d = page.locator('details.guide').nth(i);
+    const d = page.locator('details.guide:not(.hist)').nth(i);
     await d.locator('summary').click(); await page.waitForTimeout(700);
     await d.scrollIntoViewIfNeeded();
     await d.locator('.fig').scrollIntoViewIfNeeded();

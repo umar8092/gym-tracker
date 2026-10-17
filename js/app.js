@@ -87,16 +87,61 @@
     return { reps: parseInt(ex.reps, 10) || 10, kg: 0 };
   }
 
+  var barKg = (function () { try { return +localStorage.getItem('gymtracker.bar') || 20; } catch (e) { return 20; } })();
+  var PLATES = [25, 20, 15, 10, 5, 2.5, 1.25];
+  function arrow(dir) {
+    if (dir === 'same' || dir === 'mixed') { return '<svg class="ar" viewBox="0 0 10 10" aria-hidden="true"><rect x="1" y="4" width="8" height="2" rx="1"/></svg>'; }
+    return '<svg class="ar" viewBox="0 0 10 10" aria-hidden="true"><polygon points="' + (dir === 'up' ? '5,1 9,8 1,8' : '1,2 9,2 5,9') + '"/></svg>';
+  }
+  function exLogs(exId) { return Store.allLogs().filter(function (l) { return l.e === exId; }); }
+  function shortDate(s) { var d = Store.parse(s); return DAYS[d.getDay()].slice(0, 3) + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()].slice(0, 3); }
+  function chartX(x) { var d = new Date(x * 864e5); d = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); return d.getDate() + ' ' + MONTHS[d.getMonth()].slice(0, 3); }
+  var VLABEL = { up: 'Up', down: 'Down', same: 'Same', mixed: 'Mixed' };
+
+  function platesHTML(exId) {
+    var kg = draft[exId] ? num(draft[exId].kg) : 0, r = Stats.plates(kg, barKg, PLATES);
+    var h = '<div class="bar-pick" role="group" aria-label="Bar weight">' + [15, 20].map(function (b) { return '<button type="button" class="chip" data-act="bar" data-v="' + b + '" aria-pressed="' + (barKg === b) + '">' + b + ' kg bar</button>'; }).join('') + '</div>';
+    if (!r) { return h + '<p class="pl-text">The bar alone is ' + barKg + ' kg. Enter a total of at least that.</p>'; }
+    var side = r.perSide.length ? r.perSide.map(function (p) { return p.count + ' × ' + kgStr(p.plate); }).join(' + ') : 'no plates';
+    return h + '<p class="pl-text"><b>' + kgStr(kg) + ' kg total:</b> each side ' + side + '.' + (r.exact ? '' : ' The closest you can load with standard plates is ' + kgStr(r.achieved) + ' kg.') + '</p>';
+  }
+
+  function historyHTML(ex) {
+    var today = Store.today(), ss = Stats.sessions(ex.id, exLogs(ex.id)).filter(function (x) { return x.date !== today; });
+    var h = '<div class="fld"><label for="n-' + ex.id + '">Note for this exercise (seat, grip, settings)</label><input id="n-' + ex.id + '" class="text-in" type="text" maxlength="140" data-f="note" data-ex="' + ex.id + '" value="' + esc(Store.note(ex.id)) + '"></div>';
+    if (!ss.length) { return h + '<p class="muted" style="margin-top:12px">No earlier sessions yet. Your history appears here after your first workout.</p>'; }
+    h += '<h3 style="margin-top:16px">Last sessions</h3><ul class="hist-list">';
+    ss.slice(-4).reverse().forEach(function (x, i) {
+      var idx = ss.length - 1 - i, prev = ss[idx - 1], cmp = prev ? Stats.compare(x, prev) : null;
+      h += '<li><span class="hd">' + shortDate(x.date) + '</span><span class="hs num">' + x.sets.map(function (q) { return q.reps + ' × ' + kgStr(q.kg); }).join(', ') + ' kg</span>' +
+        (cmp ? '<span class="vd ' + cmp.verdict + '">' + arrow(cmp.verdict) + VLABEL[cmp.verdict] + '</span>' : '<span class="vd same">First</span>') + '</li>';
+    });
+    h += '</ul>';
+    if (ss.length >= 3) {
+      var useKg = ss.some(function (x) { return x.topKg > 0; });
+      h += '<p class="sub" style="margin-top:12px">' + (useKg ? 'Heaviest set per session (kg)' : 'Best reps per session') + '</p>' +
+        Charts.line(ss.map(function (x) { var y = useKg ? x.topKg : x.maxReps; return { x: Store.parse(x.date).getTime() / 864e5, y: y, label: shortDate(x.date) + ': ' + kgStr(y) + (useKg ? ' kg' : ' reps') }; }),
+          { unit: useKg ? ' kg' : ' reps', aria: 'Progress for ' + ex.name, xLabel: chartX });
+    }
+    return h;
+  }
+
   function loggerHTML(ex) {
-    var today = Store.today(), sets = Store.setsFor(today, ex.id), last = Store.lastSession(ex.id, today);
+    var today = Store.today(), sets = Store.setsFor(today, ex.id), last = Store.lastSession(ex.id, today), all = exLogs(ex.id);
     var dr = draft[ex.id] || (draft[ex.id] = initialDraft(ex, today));
     var h = '';
     if (last) {
       h += '<p class="last">Last time (' + longDate(last.date).replace(/^\w+ /, '') + '): ' + last.sets.map(function (s) { return s.reps + ' × ' + kgStr(s.kg); }).join(', ') + ' kg</p>';
     }
+    var tg = !sets.length && last ? Stats.target(ex.reps, Stats.summarize(last.date, last.sets)) : null;
+    if (tg) { h += '<p class="target"><b>Target today:</b> ' + tg.reps + ' reps' + (tg.kg > 0 ? ' × ' + kgStr(tg.kg) + ' kg' : '') + '. ' + esc(tg.why) + '</p>'; }
     if (sets.length) {
       h += '<ol class="sets">' + sets.map(function (s, i) {
-        return '<li><span class="sn">Set ' + (i + 1) + '</span><span class="sv num">' + s.reps + ' reps × ' + kgStr(s.kg) + ' kg</span><button class="rm" type="button" data-act="rm" data-id="' + s.id + '" aria-label="Remove set ' + (i + 1) + '">Remove</button></li>';
+        var dl = last ? Stats.setDelta(s, last.sets[i]) : null, pr = Stats.prFor(s, all);
+        return '<li><span class="sn">Set ' + (i + 1) + '</span><span class="sv num">' + s.reps + ' reps × ' + kgStr(s.kg) + ' kg' +
+          (dl ? ' <span class="dl ' + dl.dir + '">' + (dl.dir === 'same' ? '' : arrow(dl.dir)) + dl.text + '</span>' : '') +
+          (pr ? ' <span class="prb" title="' + Stats.PR_TEXT[pr] + '">PR</span>' : '') + '</span>' +
+          '<button class="rm" type="button" data-act="rm" data-id="' + s.id + '" aria-label="Remove set ' + (i + 1) + '">Remove</button></li>';
       }).join('') + '</ol>';
     }
     var bw = ex.equip === 'Bodyweight';
@@ -112,6 +157,10 @@
         MENU_KG.map(function (v) { return '<li role="option" data-act="kgset" data-v="' + v + '" aria-selected="' + (dr.kg === v) + '">' + kgStr(v) + ' kg</li>'; }).join('') +
         '</ul></div></div>' +
       '<button type="button" class="btn primary block log-btn" data-act="log">Log set ' + (sets.length + 1) + '</button></div>';
+    var extra = '';
+    if (last && sets.length < last.sets.length) { extra += '<button type="button" class="link" data-act="repeat">Repeat last time (' + (last.sets.length - sets.length) + ' more ' + (last.sets.length - sets.length === 1 ? 'set' : 'sets') + ')</button>'; }
+    if (ex.equip === 'Barbell') { extra += '<button type="button" class="link" data-act="plates">Plates</button>'; }
+    if (extra) { h += '<div class="extras">' + extra + '</div><div class="plates" hidden></div>'; }
     return h;
   }
 
@@ -151,17 +200,78 @@
     exs.forEach(function (ex, i) {
       h += '<section class="ex" data-ex="' + ex.id + '"><div class="ex-head"><span class="ex-n">' + (i + 1) + '</span><div><h2>' + esc(ex.name) + '</h2>' +
         '<p class="ex-meta"><b>' + ex.sets + ' sets of ' + esc(ex.reps) + ' reps</b>, ' + ex.equip.toLowerCase() + '. ' + esc(ex.target) + '</p>' +
-        (ex.confirm ? '<p class="confirm-note">Needs confirming that your gym has it.</p>' : '') + '</div></div>' +
+        '<p class="ex-note" data-note-for="' + ex.id + '"' + (Store.note(ex.id) ? '' : ' hidden') + '>Note: ' + esc(Store.note(ex.id)) + '</p></div></div>' +
         '<div class="ex-log">' + loggerHTML(ex) + '</div>' +
+        '<details class="guide hist" data-ex="' + ex.id + '"><summary>History and notes</summary><div class="guide-body">' + historyHTML(ex) + '</div></details>' +
         '<details class="guide" data-ex="' + ex.id + '"><summary>Form guide</summary>' + guideHTML(ex) + '</details></section>';
     });
-    h += '<div class="finish"><h3>Finished?</h3><p class="summary" id="sum">' + summaryText(id) + '</p><div class="today-actions"><a class="btn primary" href="#/" data-act="finish">Finish workout</a></div></div>';
+    h += '<div class="finish"><h3>Finished?</h3><p class="summary" id="sum">' + summaryText(id) + '</p><div class="today-actions"><a class="btn primary" href="#/summary/' + id + '">Finish workout</a></div></div>';
     h += '<p class="safety">Listen to your body. Stop an exercise if you feel sharp pain, and ask a trainer to check your form on heavy lifts.</p>';
     return h;
   }
   function summaryText(muscle) {
     var logs = Store.logsOn(Store.today()).filter(function (l) { return l.m === muscle; });
     return logs.length ? logs.length + ' sets logged, ' + Math.round(Store.volume(logs)).toLocaleString() + ' kg lifted so far.' : 'Nothing logged yet. Your sets save as you go.';
+  }
+
+  /* =========================================================  SUMMARY  */
+  var summaryText_ = '';
+  function viewSummary(muscle) {
+    var t = Store.today(), logs = Store.logsOn(t).filter(function (l) { return l.m === muscle; }).sort(function (a, b) { return a.ts - b.ts; });
+    if (!logs.length) { return '<a class="crumb" href="#/m/' + muscle + '">Back to workout</a><h1>Nothing logged</h1><p class="intro">Log at least one set and your summary appears here.</p>'; }
+    var ids = [], all = Store.allLogs();
+    logs.forEach(function (l) { if (ids.indexOf(l.e) < 0) { ids.push(l.e); } });
+    var mins = logs.length > 1 ? Math.max(1, Math.round((logs[logs.length - 1].ts - logs[0].ts) / 60000)) : 0;
+    var rows = '', beat = 0, compared = 0, prs = [];
+    ids.forEach(function (id) {
+      var ex = Data.byId[id], ss = Stats.sessions(id, all), cur = ss.filter(function (x) { return x.date === t; })[0], prev = ss.filter(function (x) { return x.date < t; }).pop();
+      var line = prev ? Stats.compare(cur, prev) : null;
+      if (prev) { compared++; if (line.verdict === 'up') { beat++; } }
+      cur.sets.forEach(function (st) { var pr = Stats.prFor(st, exLogs(id)); if (pr) { prs.push({ name: ex ? ex.name : id, text: Stats.PR_TEXT[pr], set: st }); } });
+      rows += '<li><span class="hd">' + esc(ex ? ex.name : id) + '</span><span class="hs num">' + cur.sets.map(function (q) { return q.reps + ' × ' + kgStr(q.kg); }).join(', ') + ' kg</span>' +
+        (line ? '<span class="vd ' + line.verdict + '">' + arrow(line.verdict) + VLABEL[line.verdict] + '</span><span class="vtext">' + esc(line.text) + '</span>' : '<span class="vd same">First</span><span class="vtext">First time logged. This is your starting point.</span>') + '</li>';
+    });
+    var vol = Math.round(Store.volume(logs));
+    var h = '<a class="crumb" href="#/m/' + muscle + '">Back to workout</a><h1>' + mName(muscle) + ' done</h1>' +
+      '<div class="stats"><div><b class="num">' + logs.length + '</b><span>Sets</span></div><div><b class="num">' + vol.toLocaleString() + '</b><span>Kg lifted</span></div><div><b class="num">' + (mins || '-') + '</b><span>' + (mins ? 'Minutes' : 'Minutes (needs 2+ sets)') + '</span></div></div>';
+    if (compared) { h += '<p class="lead" style="margin-top:18px"><b>' + (beat ? 'Better than last time on ' + beat + ' of ' + compared + ' exercises.' : 'Not better than last time on any exercise today. Rest and aim for it next session.') + '</b></p>'; }
+    if (prs.length) { h += '<div class="sec"><h2>Personal records</h2><ul class="hist-list">' + prs.map(function (p) { return '<li><span class="hd">' + esc(p.name) + '</span><span class="hs num">' + p.set.reps + ' × ' + kgStr(p.set.kg) + ' kg</span><span class="prb">PR</span><span class="vtext">' + p.text + '</span></li>'; }).join('') + '</ul></div>'; }
+    h += '<div class="sec"><h2>Exercises</h2><ul class="hist-list">' + rows + '</ul></div>';
+    summaryText_ = mName(muscle) + ' day, ' + shortDate(t) + ': ' + logs.length + ' sets, ' + vol.toLocaleString() + ' kg lifted' + (mins ? ', about ' + mins + ' min' : '') + '.' +
+      (compared ? ' Better than last time on ' + beat + ' of ' + compared + ' exercises.' : '') + (prs.length ? ' PRs: ' + prs.map(function (p) { return p.name + ' (' + kgStr(p.set.kg) + ' kg x ' + p.set.reps + ')'; }).join(', ') + '.' : '');
+    return h + '<div class="today-actions"><a class="btn primary" href="#/">Done</a><button class="link" type="button" data-act="copy-summary">Copy summary</button></div>';
+  }
+
+  /* =========================================================  PROGRESS HELPERS  */
+  var progMode = 'session';
+  function howSection() {
+    var logs = Store.allLogs(), ids = [];
+    logs.forEach(function (l) { if (ids.indexOf(l.e) < 0) { ids.push(l.e); } });
+    var rows = Stats.progress(logs, ids, progMode, Store.today(), Store.addDays);
+    var modes = [['session', 'Last session'], ['7', '7 days'], ['30', '30 days']];
+    var h = '<div class="sec"><h2>How you are doing</h2><div class="modes" role="group" aria-label="Compare period">' +
+      modes.map(function (m) { return '<button type="button" class="chip" data-act="mode" data-v="' + m[0] + '" aria-pressed="' + (String(progMode) === m[0]) + '">' + m[1] + '</button>'; }).join('') + '</div>' +
+      '<p class="sub" style="margin-top:8px">' + (progMode === 'session' ? 'Your latest session of each exercise compared with the session before it.' : 'The last ' + progMode + ' days compared with the ' + progMode + ' days before that.') + '</p>';
+    if (!rows.length) { return h + '<p class="empty">' + (progMode === 'session' ? 'Do an exercise in two different workouts and this compares them.' : 'Not enough data yet. This needs sets in both periods.') + '</p></div>'; }
+    var count = { up: 0, same: 0, down: 0, mixed: 0 }; rows.forEach(function (r) { count[r.verdict]++; });
+    h += '<p class="lead" style="margin-top:12px"><b>' + count.up + ' up, ' + count.same + ' same, ' + count.down + ' down' + (count.mixed ? ', ' + count.mixed + ' mixed' : '') + '</b></p>';
+    [['up', 'Going up'], ['mixed', 'Mixed'], ['down', 'Slipping'], ['same', 'Holding steady']].forEach(function (g) {
+      var list = rows.filter(function (r) { return r.verdict === g[0]; });
+      if (!list.length) { return; }
+      h += '<h3 style="margin-top:18px">' + g[1] + '</h3><ul class="hist-list">' + list.map(function (r) {
+        var ex = Data.byId[r.id];
+        return '<li><span class="hd">' + esc(ex ? ex.name : r.id) + '</span><span class="vd ' + r.verdict + '">' + arrow(r.verdict) + VLABEL[r.verdict] + '</span><span class="vtext">' + esc(r.text) + '</span></li>';
+      }).join('') + '</ul>';
+    });
+    return h + '</div>';
+  }
+  function recordsSection() {
+    var logs = Store.allLogs(), list = [];
+    Data.EX.forEach(function (ex) { var b = Stats.records(ex.id, logs); if (b) { list.push({ ex: ex, b: b }); } });
+    if (!list.length) { return ''; }
+    var row = function (x) { return '<li><span class="hd">' + esc(x.ex.name) + '</span><span class="hs num">' + (x.b.kg > 0 ? kgStr(x.b.kg) + ' kg × ' + x.b.reps : x.b.reps + ' reps') + '</span><span class="vtext">' + shortDate(x.b.d) + '</span></li>'; };
+    return '<div class="sec"><h2>Personal records</h2><p class="sub">Your heaviest set for each exercise.</p><ul class="hist-list">' + list.slice(0, 6).map(row).join('') + '</ul>' +
+      (list.length > 6 ? '<details class="more-list"><summary>Show all ' + list.length + '</summary><ul class="hist-list">' + list.slice(6).map(row).join('') + '</ul></details>' : '') + '</div>';
   }
 
   /* =========================================================  CALENDAR  */
@@ -207,7 +317,7 @@
   /* =========================================================  PROGRESS  */
   function viewProgress() {
     var t = Store.today(), p = Store.profile(), ws = Store.weights();
-    var h = '<h1>Progress</h1><div class="sec"><h2>Body weight</h2><p class="sub">Goal ' + kgStr(p.goalKg) + ' kg. Weigh in at the same time of day for a clear trend.</p>';
+    var h = '<h1>Progress</h1>' + howSection() + recordsSection() + '<div class="sec"><h2>Body weight</h2><p class="sub">Goal ' + kgStr(p.goalKg) + ' kg. Weigh in at the same time of day for a clear trend.</p>';
     if (ws.length >= 2) {
       h += Charts.line(ws.map(function (w) { return { x: Store.parse(w.d).getTime() / 864e5, y: w.kg, label: longDate(w.d) + ': ' + kgStr(w.kg) + ' kg' }; }),
         { goal: p.goalKg, unit: ' kg', aria: 'Body weight over time, latest ' + kgStr(ws[ws.length - 1].kg) + ' kilograms, goal ' + kgStr(p.goalKg),
@@ -270,6 +380,9 @@
     h += '<div class="sec"><h2>Your goal</h2><div class="row-form"><div class="fld"><label for="sk">Starting weight (kg)</label><input id="sk" class="text-in num" type="number" inputmode="decimal" step="0.1" value="' + kgStr(p.startKg) + '"></div>' +
       '<div class="fld"><label for="gk">Goal weight (kg)</label><input id="gk" class="text-in num" type="number" inputmode="decimal" step="0.1" value="' + kgStr(p.goalKg) + '"></div>' +
       '<button class="btn primary" type="button" data-act="save-goal">Save</button></div></div>';
+    var rc = Rest.cfg();
+    h += '<div class="sec"><h2>Rest timer</h2><div class="switch"><span id="rt-l">Start a timer after each set</span><button type="button" role="switch" aria-checked="' + rc.on + '" aria-labelledby="rt-l" data-act="rest-on"></button></div>' +
+      '<div class="modes four" role="group" aria-label="Rest length in seconds" style="margin-top:8px">' + [60, 90, 120, 180].map(function (v) { return '<button type="button" class="chip" data-act="rest-sec" data-v="' + v + '" aria-pressed="' + (rc.sec === v) + '">' + v + ' s</button>'; }).join('') + '</div></div>';
     h += '<div class="sec"><h2>Appearance</h2><div class="switch"><span id="dm-l">Dark mode</span><button type="button" role="switch" aria-checked="' + isDark() + '" aria-labelledby="dm-l" data-act="theme"></button></div></div>';
     h += '<div class="sec"><h2>Account</h2><p>Signed in as <b>' + esc(Store.user()) + '</b>.</p><p class="sub" id="sync-state">' + esc(syncText()) + '</p>' +
       '<div class="btns"><button class="btn small" type="button" data-act="sync-now">Sync now</button><button class="link" type="button" data-act="switch-user">Switch user</button></div></div>';
@@ -278,6 +391,35 @@
       '<button class="link danger" type="button" data-act="reset">Erase data on this device</button></div></div>';
     return h;
   }
+
+  /* =========================================================  REST TIMER  */
+  var Rest = (function () {
+    var el = document.getElementById('rest'), txt = document.getElementById('rest-t'), end = 0, tick = 0, fired = false, ctx = null, hideT = 0;
+    function cfg() { try { var c = JSON.parse(localStorage.getItem('gymtracker.rest')); if (c && c.sec) { return c; } } catch (e) {} return { on: true, sec: 90 }; }
+    function setCfg(c) { try { localStorage.setItem('gymtracker.rest', JSON.stringify(c)); } catch (e) {} }
+    function beep() {
+      try { [0, 0.28].forEach(function (d) { var o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = 880; g.gain.value = 0.2; o.connect(g); g.connect(ctx.destination); o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + 0.16); }); } catch (e) {}
+      if (navigator.vibrate) { navigator.vibrate([250, 120, 250]); }
+    }
+    function hide() { clearInterval(tick); el.hidden = true; el.classList.remove('over'); }
+    function paint() {
+      var left = Math.ceil((end - Date.now()) / 1000);
+      if (left > 0) { txt.textContent = 'Rest ' + Math.floor(left / 60) + ':' + (left % 60 < 10 ? '0' : '') + (left % 60); return; }
+      clearInterval(tick);
+      if (!fired) { fired = true; if (left > -15) { beep(); } txt.textContent = 'Rest over. Go!'; el.classList.add('over'); hideT = setTimeout(hide, 7000); }
+    }
+    function start() {
+      var c = cfg(); if (!c.on) { return; }
+      try { ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); if (ctx.resume) { ctx.resume(); } } catch (e) {}
+      clearTimeout(hideT); end = Date.now() + c.sec * 1000; fired = false; el.hidden = false; el.classList.remove('over');
+      clearInterval(tick); tick = setInterval(paint, 250); paint();
+    }
+    el.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-rest]'); if (!b) { return; }
+      if (b.dataset.rest === 'skip') { clearTimeout(hideT); hide(); } else if (!fired) { end += 15000; paint(); }
+    });
+    return { start: start, hide: function () { clearTimeout(hideT); hide(); }, cfg: cfg, setCfg: setCfg };
+  })();
 
   /* =========================================================  ACCOUNT  */
   function syncText(st) {
@@ -306,7 +448,7 @@
   }
 
   /* =========================================================  ROUTER  */
-  var views = { today: viewToday, pick: viewPick, calendar: viewCalendar, progress: viewProgress, plan: viewPlan, m: viewWorkout };
+  var views = { summary: viewSummary, today: viewToday, pick: viewPick, calendar: viewCalendar, progress: viewProgress, plan: viewPlan, m: viewWorkout };
   function route() {
     var parts = (location.hash || '#/').replace(/^#\/?/, '').split('/');
     var name = parts[0] || 'today';
@@ -316,14 +458,15 @@
     Engine.unmountAll();
     var r = route(), gate = !Store.user() ? 'login' : Store.needsSetup() ? 'setup' : '';
     document.body.classList.toggle('gated', !!gate);
+    if (gate || r.name === 'summary') { Rest.hide(); }
     view.innerHTML = gate ? (gate === 'login' ? viewLogin() : viewSetup()) : views[r.name](r.arg);
     document.querySelectorAll('.tabs a').forEach(function (a) {
-      var on = a.dataset.tab === (r.name === 'm' || r.name === 'pick' ? 'today' : r.name);
+      var on = a.dataset.tab === (r.name === 'm' || r.name === 'pick' || r.name === 'summary' ? 'today' : r.name);
       if (on) { a.setAttribute('aria-current', 'page'); } else { a.removeAttribute('aria-current'); }
     });
     view.querySelectorAll('.muscles').forEach(function (box) { showMuscle(box, box.closest('details') ? Data.byId[box.closest('details').dataset.ex].mus.view : 'front'); });
     if (!keepScroll) { window.scrollTo(0, 0); }
-    var title = { today: 'Today', pick: 'Choose a muscle', calendar: 'Calendar', progress: 'Progress', plan: 'Plan', m: r.arg && Data.MUSCLES[r.arg] ? Data.MUSCLES[r.arg].name : 'Workout' }[r.name];
+    var title = { today: 'Today', pick: 'Choose a muscle', calendar: 'Calendar', progress: 'Progress', plan: 'Plan', m: r.arg && Data.MUSCLES[r.arg] ? Data.MUSCLES[r.arg].name : 'Workout', summary: 'Summary' }[r.name];
     document.title = gate ? 'Gym Tracker' : title + ' | Gym Tracker';
   }
   function showMuscle(box, v) {
@@ -359,12 +502,32 @@
         if (open) { var sel = menu.querySelector('[aria-selected="true"]') || menu.firstElementChild; menu.focus({ preventScroll: true }); if (sel) { sel.scrollIntoView({ block: 'nearest' }); } }
         break;
       case 'log':
+        var wasLast = Store.lastSession(exId, Store.today());
         var reps = num(dr.reps), kg = num(dr.kg), ex = Data.byId[exId];
         if (!(reps >= 1) || Math.floor(reps) !== reps) { toast('Enter the reps first'); break; }
         if (isNaN(kg) || kg < 0 || (kg === 0 && ex.equip !== 'Bodyweight')) { toast('Enter the kg first'); break; }
         Store.addSet(Store.today(), ex.muscle, exId, reps, kg);
-        toast('Set ' + Store.setsFor(Store.today(), exId).length + ' logged');
-        refreshLogger(exId); break;
+        var doneSets = Store.setsFor(Store.today(), exId), mine = doneSets[doneSets.length - 1], pr = Stats.prFor(mine, exLogs(exId));
+        toast('Set ' + doneSets.length + ' logged' + (pr ? '. ' + Stats.PR_TEXT[pr] + '!' : ''));
+        if (wasLast && wasLast.sets[doneSets.length]) { draft[exId] = { reps: wasLast.sets[doneSets.length].reps, kg: wasLast.sets[doneSets.length].kg }; } // preload the next set from last time
+        Rest.start(); refreshLogger(exId); break;
+      case 'repeat':
+        var lt = Store.lastSession(exId, Store.today()), have = Store.setsFor(Store.today(), exId).length, exr = Data.byId[exId], added = 0;
+        if (lt) { lt.sets.slice(have).forEach(function (st) { Store.addSet(Store.today(), exr.muscle, exId, st.reps, st.kg); added++; }); }
+        toast(added + (added === 1 ? ' set' : ' sets') + ' logged like last time. Remove any that differ.'); refreshLogger(exId); break;
+      case 'plates':
+        var panel = secEl.querySelector('.plates'); panel.hidden = !panel.hidden; if (!panel.hidden) { panel.innerHTML = platesHTML(exId); } break;
+      case 'bar':
+        barKg = num(el.dataset.v); try { localStorage.setItem('gymtracker.bar', String(barKg)); } catch (err) {}
+        el.closest('.plates').innerHTML = platesHTML(exId); break;
+      case 'mode': progMode = el.dataset.v === 'session' ? 'session' : +el.dataset.v; render(true); break;
+      case 'rest-on': var c1 = Rest.cfg(); c1.on = !c1.on; Rest.setCfg(c1); el.setAttribute('aria-checked', String(c1.on)); break;
+      case 'rest-sec':
+        var c2 = Rest.cfg(); c2.sec = num(el.dataset.v); Rest.setCfg(c2);
+        el.parentNode.querySelectorAll('.chip').forEach(function (b) { b.setAttribute('aria-pressed', String(b === el)); }); break;
+      case 'copy-summary':
+        if (navigator.clipboard) { navigator.clipboard.writeText(summaryText_).then(function () { toast('Summary copied'); }, function () { toast('Could not copy'); }); } else { toast('Copy is not available here'); }
+        break;
       case 'rm':
         Store.removeSet(el.dataset.id); toast('Set removed'); refreshLogger(exId); break;
       case 'finish': toast('Workout saved'); break;
@@ -397,6 +560,7 @@
     sec.querySelector('[data-f="kg"]').value = kgStr(dr.kg);
     sec.querySelectorAll('.chip[data-v]').forEach(function (c) { c.setAttribute('aria-pressed', String(num(c.dataset.v) === dr.kg)); });
     sec.querySelectorAll('.lb-menu li').forEach(function (c) { c.setAttribute('aria-selected', String(num(c.dataset.v) === dr.kg)); });
+    var pl = sec.querySelector('.plates'); if (pl && !pl.hidden) { pl.innerHTML = platesHTML(exId); }
   }
 
   view.addEventListener('input', function (e) {
@@ -408,6 +572,7 @@
   });
   view.addEventListener('change', function (e) {
     var f = e.target.dataset.f;
+    if (f === 'note') { Store.setNote(e.target.dataset.ex, e.target.value); var ne = view.querySelector('[data-note-for="' + e.target.dataset.ex + '"]'); if (ne) { var nt = Store.note(e.target.dataset.ex); ne.textContent = 'Note: ' + nt; ne.hidden = !nt; } return; }
     if (f === 'prog') { progSel = e.target.value; render(true); }
     else if (f === 'inc') { Store.setHidden(e.target.dataset.id, !e.target.checked); e.target.closest('.plan-ex').classList.toggle('off', !e.target.checked); }
     else if (f === 'import' && e.target.files[0]) {
