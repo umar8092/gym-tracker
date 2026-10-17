@@ -167,7 +167,7 @@
   function figureHTML(ex) {
     return '<canvas class="pose" tabindex="0" role="img" aria-label="Rotatable 3D figure doing the ' + esc(ex.name) + '. Drag, or use the left and right arrow keys, to turn it."></canvas>' +
       '<p class="hint">Drag the figure to turn it all the way around.</p>' +
-      '<div class="views" role="group" aria-label="Camera angle"><button type="button">Front</button><button type="button">Side</button><button type="button">Back</button><button type="button">Spin</button></div>' +
+      '<div class="views" role="group" aria-label="Camera angle"><button type="button">Front</button><button type="button">Side</button><button type="button">Back</button><button type="button">Top</button><button type="button">Spin</button></div>' +
       '<div class="track" aria-hidden="true"><span>Start</span><div class="bar"><i></i></div><span>End</span></div>' +
       '<div class="seg" role="group" aria-label="' + esc(ex.name) + ' position"><button type="button">Start</button><button type="button">End</button><button type="button">Play</button></div>' +
       '<p class="phase"></p><p class="desc"></p>' +
@@ -455,7 +455,7 @@
     return { name: views[name] ? name : 'today', arg: parts[1] || '' };
   }
   function render(keepScroll) {
-    Engine.unmountAll();
+    Engine.unmountAll(); if (window.Engine3D) { Engine3D.unmountAll(); }
     var r = route(), gate = !Store.user() ? 'login' : Store.needsSetup() ? 'setup' : '';
     document.body.classList.toggle('gated', !!gate);
     if (gate || r.name === 'summary') { Rest.hide(); }
@@ -542,7 +542,7 @@
         Store.setProfile({ startKg: sk, goalKg: gk }); toast('Goal saved'); break;
       case 'theme':
         var dark = !isDark(); document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light'); Store.setTheme(dark ? 'dark' : 'light');
-        el.setAttribute('aria-checked', String(dark)); Engine.redraw(); break;
+        el.setAttribute('aria-checked', String(dark)); Engine.redraw(); if (window.Engine3D) { Engine3D.redraw(); } break;
       case 'export':
         var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([Store.exportJSON()], { type: 'application/json' }));
         a.download = 'gym-tracker-' + Store.today() + '.json'; a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000); break;
@@ -626,7 +626,10 @@
     var d = e.target;
     if (!d.matches || !d.matches('details.guide') || !d.open) { return; }
     var ex = Data.byId[d.dataset.ex], fig = d.querySelector('.fig');
-    if (ex && ex.fig && fig && !fig.__st) { Engine.mount(fig, ex.fig); }
+    if (ex && ex.fig && fig && !fig.__st) {
+      if (window.Engine3D && Engine3D.supports(ex)) { Engine3D.mount(fig, ex); }
+      else { var top = fig.querySelectorAll('.views button')[3]; if (top) { top.remove(); } Engine.mount(fig, ex.fig); }   // old 2D engine as a fallback
+    }
   }, true);
   window.addEventListener('hashchange', function () { render(); });
   document.addEventListener('click', function (e) { if (!e.target.closest('.kg-row')) { closeMenus(); } });

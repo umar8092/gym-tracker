@@ -2,7 +2,7 @@
 const { chromium } = require('/Users/muhammadumar/.local/lib/node_modules/@playwright/cli/node_modules/playwright-core');
 const OUT = '/tmp/gt-shots', URL = 'http://localhost:8765/index.html';
 (async () => {
-  const b = await chromium.launch({ channel: 'chrome' });
+  const b = await chromium.launch({ channel: 'chrome', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
   const page = await ctx.newPage(); const errs = []; await require('./helpers').signIn(page);
   page.on('console', m => { if (m.type() === 'error' && !/fonts\.g|ERR_FAILED/.test(m.text())) errs.push(m.text()); });

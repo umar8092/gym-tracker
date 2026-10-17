@@ -3,7 +3,7 @@ const { chromium } = require('/Users/muhammadumar/.local/lib/node_modules/@playw
 const { fakeCloud } = require('./helpers');
 const URL = process.env.URL || 'http://localhost:8765/index.html';
 (async () => {
-  const b = await chromium.launch({ channel: 'chrome' }), cloud = fakeCloud(null), fails = [];
+  const b = await chromium.launch({ channel: 'chrome', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] }), cloud = fakeCloud(null), fails = [];
   const ok = (c, m) => { if (!c) fails.push(m); console.log((c ? 'PASS ' : 'FAIL ') + m); };
   async function device() {
     const ctx = await b.newContext({ viewport: { width: 390, height: 844 } }); await cloud.install(ctx);

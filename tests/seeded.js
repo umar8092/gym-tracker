@@ -1,7 +1,7 @@
 // Seeds 4 weeks of fake history, then screenshots today / calendar / progress to check charts and statuses.
 const { chromium } = require('/Users/muhammadumar/.local/lib/node_modules/@playwright/cli/node_modules/playwright-core');
 (async () => {
-  const b = await chromium.launch({ channel: 'chrome' });
+  const b = await chromium.launch({ channel: 'chrome', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const page = await (await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })).newPage(); const errs = [];
   page.on('pageerror', e => errs.push(e.message)); page.on('console', m => { if (m.type() === 'error' && !/fonts\.g|ERR_FAILED/.test(m.text())) errs.push(m.text()); });
   const seed = () => {

@@ -1,0 +1,24 @@
+<!doctype html><meta charset="utf-8">
+<style>body{margin:0;background:#ECEFE9}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"../vendor/three.module.min.js","three/addons/":"../vendor/addons/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+const q = new URLSearchParams(location.search), yaw = +(q.get('yaw')||0), pitch = +(q.get('pitch')||8);
+const W = 560, H = 760, r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+r.setSize(W, H); r.setPixelRatio(1); r.shadowMap.enabled = true; r.toneMapping = THREE.ACESFilmicToneMapping; r.outputColorSpace = THREE.SRGBColorSpace; document.body.appendChild(r.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color('#ECEFE9');
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a9a94, 1.2));
+const key = new THREE.DirectionalLight(0xffffff, 2.4); key.position.set(-2, 4, 3); key.castShadow = true; scene.add(key);
+const rim = new THREE.DirectionalLight(0xbfe9e4, 1.2); rim.position.set(3, 2, -3); scene.add(rim);
+const floor = new THREE.Mesh(new THREE.CircleGeometry(1.1, 64), new THREE.MeshStandardMaterial({ color: '#C5CDC7', roughness: 1 })); floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; scene.add(floor);
+const cam = new THREE.PerspectiveCamera(30, W/H, 0.1, 50);
+const g = await new GLTFLoader().loadAsync('../models/Superhero_Male_FullBody.gltf');
+g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+scene.add(g.scene);
+window.__ready = true; window.__g = g;
+const box = new THREE.Box3().setFromObject(g.scene); console.log('bbox', JSON.stringify(box.min), JSON.stringify(box.max));
+const d = 5.2, ty = 0.95, ay = yaw*Math.PI/180, ap = pitch*Math.PI/180;
+cam.position.set(Math.sin(ay)*Math.cos(ap)*d, ty + Math.sin(ap)*d, Math.cos(ay)*Math.cos(ap)*d); cam.lookAt(0, ty, 0);
+r.render(scene, cam); window.__done = true;
+</script>

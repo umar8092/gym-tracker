@@ -1,0 +1,50 @@
+<!doctype html><meta charset="utf-8">
+<style>body{margin:0;background:#ECEFE9;font:12px sans-serif}#g{display:flex;flex-wrap:wrap;gap:4px;padding:4px}.c{position:relative}.c span{position:absolute;left:4px;top:2px;color:#333}canvas{display:block}</style>
+<div id="g"></div>
+<script src="../js/data.js"></script>
+<script type="importmap">{"imports":{"three":"../vendor/three.module.min.js","three/addons/":"../vendor/addons/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { Rig } from '../js/fig/rig.js';
+import { bakeMuscles, muscleMaterial } from '../js/fig/muscles.js';
+import { makeDumbbell, makeFloor } from '../js/fig/props.js';
+import { fromKeys, armKeysPose } from '../js/fig/poses.js';
+const q = new URLSearchParams(location.search);
+const shots = JSON.parse(q.get('shots') || '[["overhead-press",0,-22,8],["overhead-press",1,-22,8]]');
+const W = +(q.get('w') || 320), H = +(q.get('h') || 420);
+const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: true }); r.setSize(W, H); r.shadowMap.enabled = true; r.toneMapping = THREE.ACESFilmicToneMapping; r.outputColorSpace = THREE.SRGBColorSpace;
+const pm = new THREE.PMREMGenerator(r); const env = pm.fromScene(new RoomEnvironment(), 0.04).texture;
+const gltf = await new GLTFLoader().loadAsync('../models/Superhero_Male_FullBody.gltf');
+const rig0 = new Rig(gltf.scene); let body0; gltf.scene.traverse(o => { if (o.isSkinnedMesh && o.name.includes('SuperHero')) body0 = o; }); const t0 = performance.now(); bakeMuscles(rig0, body0); console.log('bake ms', Math.round(performance.now() - t0));
+const root = SkeletonUtils.clone(gltf.scene); root.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+let bodyMesh; root.traverse(o => { if (o.isSkinnedMesh && o.name.includes('SuperHero')) bodyMesh = o; }); const mm = muscleMaterial(bodyMesh); if (q.get('debug')) { mm.setDebug(true); }
+const MP = (q.get('mp') || '').split(',').filter(Boolean), MS = (q.get('ms') || '').split(',').filter(Boolean); mm.set(MP, MS);
+const rig = new Rig(root); if (q.get('thumb')) { rig.thumbCfg = JSON.parse(q.get('thumb')); }
+console.log('handL x', rig.rest.hand_l.p.x.toFixed(2), 'handR x', rig.rest.hand_r.p.x.toFixed(2), 'len arm', rig.len.arm_l.map(v=>v.toFixed(3)), 'leg', rig.len.leg_l.map(v=>v.toFixed(3)));
+console.log('handRest l', JSON.stringify(Object.fromEntries(Object.entries(rig.handRest.l).map(([k,v])=>[k,v.toArray().map(x=>+x.toFixed(2))]))));
+console.log('handRest r', JSON.stringify(Object.fromEntries(Object.entries(rig.handRest.r).map(([k,v])=>[k,v.toArray().map(x=>+x.toFixed(2))]))));
+console.log('footRest', JSON.stringify(rig.footRest.l.f.toArray().map(x=>+x.toFixed(2))));
+const scene = new THREE.Scene(); scene.environment = env; scene.add(new THREE.HemisphereLight(0xffffff, 0x8a9a94, 0.5));
+const key = new THREE.DirectionalLight(0xffffff, 2.2); key.position.set(-2, 4, 3); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); scene.add(key);
+const rim = new THREE.DirectionalLight(0xbfe9e4, 1.0); rim.position.set(3, 2, -3); scene.add(rim);
+scene.add(makeFloor()); scene.add(root);
+const dbs = [makeDumbbell(), makeDumbbell()]; dbs.forEach(d => scene.add(d));
+const cam = new THREE.PerspectiveCamera(30, W / H, 0.1, 50);
+function place(db, fr, s) { const p = rig.wp('hand_' + s).add(fr.f.clone().multiplyScalar(window.FO)).add(fr.n.clone().multiplyScalar(window.NO)); db.position.copy(p); db.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(fr.B, fr.n, fr.f.clone().cross(fr.B).negate().negate())); }
+const grid = document.getElementById('g'); window.FO = +(q.get('fo') || 0.075); window.NO = +(q.get('no') || 0.035);
+const FO = +(q.get('fo') || 0.075), NO = +(q.get('no') || 0.035);
+for (const [id, t, yaw, pitch, ty = 0.95, dist = 5.0, tx = 0] of shots) {
+  const ex = Data.byId[id]; rig.reset();
+  const keys = fromKeys(ex.fig); const fr = armKeysPose(rig, keys, t, ex.fig.bendDeg || 0);
+  place(dbs[0], fr.l, 'l'); place(dbs[1], fr.r, 'r');
+  const ay = yaw * Math.PI / 180, ap = pitch * Math.PI / 180;
+  cam.position.set(Math.sin(ay) * Math.cos(ap) * dist, ty + Math.sin(ap) * dist, Math.cos(ay) * Math.cos(ap) * dist); cam.lookAt(tx, ty, 0); cam.position.x += tx;
+  r.setClearColor(0xECEFE9, 1); r.render(scene, cam);
+  const c = document.createElement('canvas'); c.width = W; c.height = H; c.getContext('2d').drawImage(r.domElement, 0, 0);
+  const d = document.createElement('div'); d.className = 'c'; d.append(c); const sp = document.createElement('span'); sp.textContent = id + ' t=' + t + ' yaw=' + yaw; d.append(sp); grid.append(d);
+}
+window.__done = true;
+</script>

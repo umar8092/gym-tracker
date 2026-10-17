@@ -3,7 +3,7 @@
 const { chromium } = require(process.env.PW_CORE || '/Users/muhammadumar/.local/lib/node_modules/@playwright/cli/node_modules/playwright-core');
 const OUT = process.env.OUT || '/tmp/gt-shots';
 (async () => {
-  const browser = await chromium.launch({ channel: 'chrome' });
+  const browser = await chromium.launch({ channel: 'chrome', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const errors = [];
   const sizes = [[390, 844, 'phone'], [1280, 900, 'desk']];
   for (const [w, h, tag] of sizes) {

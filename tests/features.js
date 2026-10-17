@@ -3,7 +3,7 @@ const { chromium } = require('/Users/muhammadumar/.local/lib/node_modules/@playw
 const { signIn } = require('./helpers');
 const URL = process.env.URL || 'http://localhost:8765/index.html', OUT = '/tmp/gt-shots';
 (async () => {
-  const b = await chromium.launch({ channel: 'chrome' }), fails = [];
+  const b = await chromium.launch({ channel: 'chrome', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] }), fails = [];
   const ok = (c, m) => { if (!c) fails.push(m); console.log((c ? 'PASS ' : 'FAIL ') + m); };
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 }); const page = await ctx.newPage();
   page.on('pageerror', e => fails.push('PAGEERROR ' + e.message)); page.on('console', m => { if (m.type() === 'error' && !/ERR_FAILED/.test(m.text())) fails.push('console ' + m.text()); });

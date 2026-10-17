@@ -21,7 +21,7 @@ const call = (t, path, body, method = 'POST') => fetch(BASE + path, { method, he
   ok((await call(t, `/users/${name}/logs/rest1`, null, 'GET')).status === 200, 'authenticated read works');
 
   // the real app, two devices, against the real cloud
-  const b = await chromium.launch({ channel: 'chrome' }); const fl = [];
+  const b = await chromium.launch({ channel: 'chrome', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] }); const fl = [];
   async function dev() { const c = await b.newContext({ viewport: { width: 390, height: 844 } }); const p = await c.newPage(); p.on('pageerror', e => fl.push(e.message)); p.on('console', m => { if (m.type() === 'error' && !/fonts\.g|40[34]/.test(m.text())) fl.push(m.text()); }); return p; }
   const synced = p => p.waitForFunction(() => Sync.status().state === 'synced', null, { timeout: 15000 }).catch(() => {});
   const ui = 'zz_ui_' + Math.random().toString(36).slice(2, 8);

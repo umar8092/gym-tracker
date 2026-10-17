@@ -1,0 +1,49 @@
+<!doctype html><meta charset="utf-8">
+<style>body{margin:0;background:#ECEFE9;font:12px sans-serif}#g{display:flex;flex-wrap:wrap;gap:4px;padding:4px}.c{position:relative}.c span{position:absolute;left:4px;top:2px;color:#333;background:#ECEFEDcc}canvas{display:block}</style>
+<div id="g"></div>
+<script src="../js/data.js"></script>
+<script type="importmap">{"imports":{"three":"../vendor/three.module.min.js","three/addons/":"../vendor/addons/"}}</script>
+<script type="module">
+// Renders exercise poses with the real engine objects (exercises.js) for visual checks.  ?shots=[["id",t,yaw,pitch,tx,ty,tz,dist],...]&w=&h=
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { Rig } from '../js/fig/rig.js';
+import { bakeMuscles, muscleMaterial } from '../js/fig/muscles.js';
+import { makeFloor } from '../js/fig/props.js';
+import { exerciseFor } from '../js/fig/exercises.js';
+const q = new URLSearchParams(location.search), W = +(q.get('w') || 480), H = +(q.get('h') || 560);
+const shots = JSON.parse(q.get('shots') || '[]');
+const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: true }); r.setSize(W, H); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 0.95; r.outputColorSpace = THREE.SRGBColorSpace;
+const env = new THREE.PMREMGenerator(r).fromScene(new RoomEnvironment(), 0.04).texture;
+const gltf = await new GLTFLoader().loadAsync('../models/Superhero_Male_FullBody.gltf');
+const rig0 = new Rig(gltf.scene); let body0; gltf.scene.traverse(o => { if (o.isSkinnedMesh && o.name.includes('SuperHero')) body0 = o; }); bakeMuscles(rig0, body0);
+const report = [];
+const grid = document.getElementById('g');
+for (const [id, t, yaw, pitch, tx, ty, tz, dist, mp, ms] of shots) {
+  const ex = Data.byId[id], def = exerciseFor(ex);
+  const scene = new THREE.Scene(); scene.environment = env; scene.environmentIntensity = 0.55; scene.add(new THREE.HemisphereLight(0xffffff, 0x8a9a94, 0.45));
+  const key = new THREE.DirectionalLight(0xffffff, 2.3); key.position.set(-2.2, 4, 3.2); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); Object.assign(key.shadow.camera, { left: -2.2, right: 2.2, top: 2.6, bottom: -1.2, near: 0.5, far: 12 }); scene.add(key);
+  const rimL = new THREE.DirectionalLight(0xbfe9e4, 1.0); rimL.position.set(3, 2, -3); scene.add(rimL);
+  const root = SkeletonUtils.clone(gltf.scene); let body; root.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } if (o.isSkinnedMesh && o.name.includes('SuperHero')) body = o; });
+  const mm = muscleMaterial(body); body.material.color.set(0xe6ccbf); mm.set(mp ? mp.split(',') : (ex.mus ? ex.mus.p : []), ms ? ms.split(',') : (ex.mus ? ex.mus.s : [])); if (q.get('debug')) mm.setDebug(true);
+  scene.add(root); const fl = makeFloor(); fl.material.transparent = true; fl.material.opacity = 0.55; scene.add(fl);
+  const sh = new THREE.Mesh(new THREE.CircleGeometry(1.6, 48), new THREE.ShadowMaterial({ opacity: 0.22 })); sh.rotation.x = -Math.PI / 2; sh.position.y = 0.002; sh.receiveShadow = true; scene.add(sh);
+  const rig = new Rig(root), ctx = { rig, scene, root, body }, props = def.setup(ctx); props.ctx = ctx;
+  const out = def.pose(props, t); root.updateMatrixWorld(true);
+  // diagnostics: lowest body point, elbow/knee angles
+  const v = new THREE.Vector3(); let minY = 9; body.skeleton.update(); for (let i = 0; i < body.geometry.attributes.position.count; i++) { body.getVertexPosition(i, v); v.applyMatrix4(body.matrixWorld); if (v.y < minY) minY = v.y; }
+  const ang = (a, b, c) => { const p = rig.wp(a), m = rig.wp(b), e = rig.wp(c); return +(180 - p.clone().sub(m).angleTo(e.clone().sub(m)) * 180 / Math.PI).toFixed(0); };
+  let barClear = null; if (out.diag && out.diag.bar) { const b = out.diag.bar; let m = 9; for (let i = 0; i < body.geometry.attributes.position.count; i++) { body.getVertexPosition(i, v); v.applyMatrix4(body.matrixWorld); if (Math.abs(v.x) < 0.1) { const dd = Math.hypot(v.y - b.y, v.z - b.z); if (dd < m) m = dd; } } barClear = +(m - b.r).toFixed(3); }
+  report.push({ id, t, barClear, minY: +minY.toFixed(3), elbowL: ang('upperarm_l', 'lowerarm_l', 'hand_l'), elbowR: ang('upperarm_r', 'lowerarm_r', 'hand_r'), kneeL: ang('thigh_l', 'calf_l', 'foot_l'), reach: out.diag ? out.diag.reach : null });
+  const cam = new THREE.PerspectiveCamera(30, W / H, 0.05, 40), c = def.camera, ay = yaw * Math.PI / 180, ap = pitch * Math.PI / 180, d = dist || c.dist, T = new THREE.Vector3(tx ?? 0, ty ?? c.ty, tz ?? c.tz ?? 0);
+  cam.position.set(T.x + Math.sin(ay) * Math.cos(ap) * d, T.y + Math.sin(ap) * d, T.z + Math.cos(ay) * Math.cos(ap) * d); cam.lookAt(T);
+  if (pitch > 80) { cam.up.set(-Math.sin(ay), 0, -Math.cos(ay)); cam.lookAt(T); }
+  r.setClearColor(0xECEFE9, 1); r.render(scene, cam);
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H; cv.getContext('2d').drawImage(r.domElement, 0, 0);
+  const dv = document.createElement('div'); dv.className = 'c'; dv.append(cv); const sp = document.createElement('span'); sp.textContent = id + ' t=' + t + ' yaw=' + yaw + ' pitch=' + pitch; dv.append(sp); grid.append(dv);
+}
+console.log('REPORT ' + JSON.stringify(report));
+window.__done = true;
+</script>
