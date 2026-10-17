@@ -1,0 +1,14 @@
+{
+  "name": "Gym Tracker",
+  "short_name": "Gym",
+  "description": "Pick today's muscle, log sets and kilograms, and track progress.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ECEFE9",
+  "theme_color": "#0B7A75",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
