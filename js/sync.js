@@ -61,7 +61,7 @@
     function page() {
       var body = { structuredQuery: { from: [{ collectionId: coll }], where: { fieldFilter: { field: { fieldPath: 'u' }, op: 'GREATER_THAN_OR_EQUAL', value: encInt(c) } }, orderBy: [{ field: { fieldPath: 'u' }, direction: 'ASCENDING' }], limit: 500 } };
       return api('/users/' + user + ':runQuery', { method: 'POST', body: JSON.stringify(body) }).then(function (r) {
-        if (r.status === 403) { var e = new Error('This username is not on the allowed list'); e.denied = true; throw e; }
+        if (r.status === 403) { var e = new Error('The cloud refused this username'); e.denied = true; throw e; }
         if (!r.ok) { throw new Error('Cloud error ' + r.status); }
         return r.json();
       }).then(function (rows) {
@@ -81,7 +81,7 @@
       queryAll(user, 'weights', cur.weights),
       api('/users/' + user + '/meta/settings').then(function (r) {
         if (r.status === 404) { return null; }
-        if (r.status === 403) { var e = new Error('This username is not on the allowed list'); e.denied = true; throw e; }
+        if (r.status === 403) { var e = new Error('The cloud refused this username'); e.denied = true; throw e; }
         if (!r.ok) { throw new Error('Cloud error ' + r.status); }
         return r.json().then(function (d) { var f = dec(d.fields); return { u: f.u, profile: JSON.parse(f.json).profile, hidden: JSON.parse(f.json).hidden }; });
       })
@@ -105,7 +105,7 @@
     return chunks.reduce(function (pr, ch) {
       return pr.then(function () {
         return api(':commit', { method: 'POST', body: JSON.stringify({ writes: ch }) }).then(function (r) {
-          if (r.status === 403) { var e = new Error('This username is not on the allowed list'); e.denied = true; throw e; }
+          if (r.status === 403) { var e = new Error('The cloud refused this username'); e.denied = true; throw e; }
           if (!r.ok) { throw new Error('Cloud error ' + r.status); }
         });
       });

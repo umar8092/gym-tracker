@@ -3,7 +3,7 @@ const { chromium } = require('/Users/muhammadumar/.local/lib/node_modules/@playw
 const { fakeCloud } = require('./helpers');
 const URL = process.env.URL || 'http://localhost:8765/index.html';
 (async () => {
-  const b = await chromium.launch({ channel: 'chrome' }), cloud = fakeCloud(['umar', 'sam', 'kim']), fails = [];
+  const b = await chromium.launch({ channel: 'chrome' }), cloud = fakeCloud(null), fails = [];
   const ok = (c, m) => { if (!c) fails.push(m); console.log((c ? 'PASS ' : 'FAIL ') + m); };
   async function device() {
     const ctx = await b.newContext({ viewport: { width: 390, height: 844 } }); await cloud.install(ctx);
@@ -43,10 +43,12 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
   await C.p.fill('#su-now', '80'); await C.p.fill('#su-goal', '72'); await C.p.click('form[data-form="setup"] button'); await C.p.waitForTimeout(300);
   ok(await setsToday(C.p) === 0, 'sam does not see umar\'s sets');
 
-  // user not on the allowlist is refused
-  const D = await device(); await login(D.p, 'bob');
-  ok((await D.p.locator('#login-err').textContent()).includes('not on the list'), 'unlisted username is refused');
-  ok(await D.p.evaluate(() => Store.user()) === '', 'refused user is not signed in');
+  // open sign-up: a brand-new name just works, an invalid name is refused before any request
+  const D = await device(); await login(D.p, 'bob_99');
+  ok(await D.p.locator('form[data-form="setup"]').count() === 1, 'a brand-new username is created automatically');
+  const E = await device(); await login(E.p, 'Ab');
+  ok((await E.p.locator('#login-err').textContent()).includes('3 to 20'), 'invalid username is refused with a clear message');
+  ok(await E.p.evaluate(() => Store.user()) === '', 'invalid username is not signed in');
 
   // offline edits catch up
   cloud.down = true; await logSet(A.p, 5); await A.p.waitForTimeout(2400);

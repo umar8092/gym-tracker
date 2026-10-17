@@ -286,13 +286,13 @@
       case 'syncing': return 'Syncing...';
       case 'synced': var d = new Date(st.at); return 'Synced at ' + d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes() + '.';
       case 'offline': return 'Offline. Everything is saved on this device and will sync when you are back online.';
-      case 'denied': return 'This username is not allowed in the cloud, so your data is only on this device. Ask Umar to add it.';
+      case 'denied': return 'The cloud refused this username, so your data is only on this device.';
       case 'error': return 'Sync problem (' + st.msg + '). It will retry.';
       default: return 'Not synced yet.';
     }
   }
   function viewLogin() {
-    return '<h1>Who is training?</h1><p class="intro">Type your username. It keeps your workouts separate from everyone else using this app. There is no password.</p>' +
+    return '<h1>Who is training?</h1><p class="intro">Type a username. New here? Pick any name and it is created for you. It keeps your workouts separate from everyone else using this app. There is no password, so anyone who types the same name sees that log: choose something others will not guess.</p>' +
       '<form data-form="login" novalidate><div class="fld" style="margin-top:22px"><label for="un">Username</label>' +
       '<input id="un" class="text-in" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="20" required></div>' +
       '<p class="muted" style="font-size:14px;margin-top:6px">Lowercase letters, numbers and underscores.</p>' +
@@ -432,7 +432,7 @@
       Sync.check(name).then(function (r) {
         if (r === 'ok') { go(); return; }
         btn.disabled = false; btn.textContent = 'Continue';
-        err.textContent = r === 'denied' ? 'That username is not on the list. Ask Umar to add it.' : r === 'offline' ? 'No connection. The first sign-in on a device needs internet.' : 'Could not reach the cloud. Try again in a moment.';
+        err.textContent = r === 'denied' ? 'The cloud refused that username. Try another one.' : r === 'offline' ? 'No connection. The first sign-in on a device needs internet.' : 'Could not reach the cloud. Try again in a moment.';
       });
     } else if (f === 'setup') {
       e.preventDefault();

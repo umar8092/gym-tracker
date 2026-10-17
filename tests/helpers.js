@@ -9,7 +9,7 @@ exports.signIn = async function (page, name = 'umar', extra = {}) {
   }, [name, extra]);
 };
 
-// In-memory Firestore REST + anonymous auth. allowed = usernames the rules accept.
+// In-memory Firestore REST + anonymous auth. allowed = usernames the rules accept; null = any valid name (open sign-up).
 exports.fakeCloud = function (allowed) {
   const docs = new Map(); let n = 0; const log = []; const api = { down: false };
   const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
@@ -26,13 +26,14 @@ exports.fakeCloud = function (allowed) {
       const m = path.match(/^\/users\/([^/:]+)/); const name = m && m[1];
       log.push(req.method() + ' ' + path);
       if (!req.headers().authorization) return json(route, 401, { error: { message: 'no auth' } });
+      const okName = n => (allowed ? allowed.includes(n) : /^[a-z0-9_]{3,20}$/.test(n));
       if (path === ':commit') { // database-level call: the rules are checked per written document
         const writes = JSON.parse(req.postData()).writes;
-        if (writes.some(w => !allowed.includes((w.update.name.split('/users/')[1] || '').split('/')[0]))) return json(route, 403, { error: { status: 'PERMISSION_DENIED' } });
+        if (writes.some(w => !okName((w.update.name.split('/users/')[1] || '').split('/')[0]))) return json(route, 403, { error: { status: 'PERMISSION_DENIED' } });
         for (const w of writes) docs.set(w.update.name.split('/documents')[1], w.update.fields);
         return json(route, 200, { writeResults: [] });
       }
-      if (!name || !allowed.includes(name)) return json(route, 403, { error: { status: 'PERMISSION_DENIED' } });
+      if (!name || !okName(name)) return json(route, 403, { error: { status: 'PERMISSION_DENIED' } });
       if (path.endsWith(':runQuery')) {
         const q = JSON.parse(req.postData()).structuredQuery, coll = q.from[0].collectionId, min = num(q.where.fieldFilter.value);
         const rows = [...docs.entries()].filter(([k, v]) => k.startsWith(`/users/${name}/${coll}/`) && num(v.u) >= min).sort((a, b) => num(a[1].u) - num(b[1].u)).slice(0, q.limit);
