@@ -598,3 +598,9 @@ main[data-r="m"] section.ex { background: var(--surface); border: 0; border-radi
 .d-quote.q2 { background: var(--deep); color: var(--on-deep); }
 .d-quote.q1 .quote { color: var(--on-ember); } .d-quote.q2 .quote { color: var(--on-deep); }
 @media (min-width: 640px) and (max-width: 999px) { .quotes { grid-template-columns: repeat(3, 1fr); } .d-quote .quote { font-size: 19px; } }
+
+/* single rotating quote card */
+.dash.today .d-quote { grid-area: quote; }
+button.d-quote { display: block; width: 100%; text-align: left; border: 0; cursor: pointer; font: inherit; min-height: 96px; transition: background-color .35s, transform .12s; }
+button.d-quote:active { transform: scale(.99); }
+button.d-quote .quote { transition: opacity .22s; font-size: 26px; max-width: 34ch; }

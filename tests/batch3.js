@@ -32,6 +32,11 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
   await page.goto(URL + '#/m/chest'); await page.waitForTimeout(300);
   const bs = page.locator('section.ex').first(); await bs.locator('[data-f="kg"]').fill('60'); await bs.locator('[data-act="warm"]').click();
   ok((await bs.locator('.warmup').textContent()).includes('8 × 30 kg, 5 × 42.5 kg, 3 × 50 kg'), 'warm-up ramp shows for 60 kg');
+  // rotating quote card: one at a time, tap shows another
+  await page.goto(URL + '#/'); await page.waitForTimeout(400);
+  const q1 = await page.locator('.d-quote .quote').textContent(); await page.locator('.d-quote').click(); await page.waitForTimeout(500);
+  const q2 = await page.locator('.d-quote .quote').textContent();
+  ok(await page.locator('.d-quote').count() === 1 && q1 !== q2, 'one quote card, tap shows a different quote: ' + q2);
   const kinds = await page.evaluate(() => { // a Monday 3 weeks ago: missed alone, made up once chest is trained on Wednesday
     let d = new Date(); d.setDate(d.getDate() - 21); while (d.getDay() !== 1) d.setDate(d.getDate() - 1);
     const mon = Store.ymd(d), wed = Store.addDays(mon, 2), a = Store.dayInfo(mon).kind;

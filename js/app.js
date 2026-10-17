@@ -23,17 +23,123 @@
   function visibleEx(muscle) { return Data.exercisesFor(muscle).filter(function (e) { return !Store.isHidden(e.id); }); }
 
   /* =========================================================  TODAY  */
-  var QUOTES = ['Small steps every day add up to big changes.', 'You do not have to be extreme, just consistent.', 'The only bad workout is the one that did not happen.', 'Discipline is doing it when you do not feel like it.',
-    'Strong is built one rep at a time.', 'Progress, not perfection.', 'Show up today. Future you will say thanks.', 'It never gets easier, you just get stronger.', 'Your only competition is who you were yesterday.',
-    'Sweat now, shine later.', 'A little more than last time is still progress.', 'Motivation gets you started. Habit keeps you going.', 'Rest is part of the plan, not a break from it.', 'Lift with control. The weight will follow.',
-    'Do it for the person you are becoming.', 'Consistency beats intensity.', 'Today counts, even if it is only a short session.', 'Train hard, recover well, repeat.', 'One more good set.', 'Results come from the days nobody sees.',
-    'Start where you are. Use what you have.', 'Be patient. Muscle takes months, not days.', 'The hardest rep is the first one through the door.', 'Make it a habit, not a decision.', 'Good form first, heavy weight second.',
-    'You are one workout away from a better mood.', 'Every expert was once a beginner under the bar.', 'Fuel it, lift it, rest it.', 'Respect the process.', 'Better than yesterday.', 'Strength does not come from what you can do, it comes from overcoming what you thought you could not.', 'Take care of your body. It is the only place you have to live.', 'Eat well, sleep well, lift well.', 'The pump fades, the progress stays.', 'Do not wish for it. Work for it.', 'Every rep is a vote for the person you want to be.', 'Slow progress is still progress.', 'Warm up, work hard, cool down, repeat.', 'Win the day.', 'You will never regret a workout you finished.', 'Fall in love with the process.', 'Earn your rest day.', 'Lighter weight with perfect form beats heavier with sloppy form.', 'Keep showing up.', 'Strong body, calm mind.'];
-  // three different quotes a day, stepping through the list so they change every day
-  function quoteHTML(t) {
-    var d = Store.parse(t), base = (Math.floor(d.getTime() / 864e5) + d.getDate()) * 3;
-    return '<section class="quotes" aria-label="Motivation">' + [0, 1, 2].map(function (i) { return '<blockquote class="d-card d-quote q' + i + '"><p class="quote">“' + QUOTES[(base + i * 7) % QUOTES.length] + '”</p></blockquote>'; }).join('') + '</section>';
+  var QUOTES = [
+    'Small steps every day add up to big changes.',
+    'You do not have to be extreme, just consistent.',
+    'The only bad workout is the one that did not happen.',
+    'Discipline is doing it when you do not feel like it.',
+    'Strong is built one rep at a time.',
+    'Progress, not perfection.',
+    'Show up today. Future you will say thanks.',
+    'It never gets easier, you just get stronger.',
+    'Your only competition is who you were yesterday.',
+    'Sweat now, shine later.',
+    'A little more than last time is still progress.',
+    'Motivation gets you started. Habit keeps you going.',
+    'Rest is part of the plan, not a break from it.',
+    'Lift with control. The weight will follow.',
+    'Do it for the person you are becoming.',
+    'Consistency beats intensity.',
+    'Today counts, even if it is only a short session.',
+    'Train hard, recover well, repeat.',
+    'One more good set.',
+    'Results come from the days nobody sees.',
+    'Start where you are. Use what you have.',
+    'Be patient. Muscle takes months, not days.',
+    'The hardest rep is the first one through the door.',
+    'Make it a habit, not a decision.',
+    'Good form first, heavy weight second.',
+    'You are one workout away from a better mood.',
+    'Every expert was once a beginner under the bar.',
+    'Fuel it, lift it, rest it.',
+    'Respect the process.',
+    'Better than yesterday.',
+    'Strength does not come from what you can do, it comes from overcoming what you thought you could not.',
+    'Take care of your body. It is the only place you have to live.',
+    'Eat well, sleep well, lift well.',
+    'The pump fades, the progress stays.',
+    'Do not wish for it. Work for it.',
+    'Every rep is a vote for the person you want to be.',
+    'Slow progress is still progress.',
+    'Warm up, work hard, cool down, repeat.',
+    'Win the day.',
+    'You will never regret a workout you finished.',
+    'Fall in love with the process.',
+    'Earn your rest day.',
+    'Lighter weight with perfect form beats heavier with sloppy form.',
+    'Keep showing up.',
+    'Strong body, calm mind.',
+    'Pain is temporary. Quitting lasts.',
+    'Don\'t count the reps. Make the reps count.',
+    'Your body can stand almost anything. It\'s your mind you have to convince.',
+    'Sore today, strong tomorrow.',
+    'If it was easy, everyone would do it.',
+    'Champions train when they are tired.',
+    'Excuses burn zero calories.',
+    'The iron never lies.',
+    'Lift heavy things, put them down, feel better.',
+    'Today\'s effort is tomorrow\'s strength.',
+    'Be stronger than your excuses.',
+    'Progress is quiet. Keep going.',
+    'Turn the doubt into one more rep.',
+    'Nobody ever regretted finishing the set.',
+    'The first week is a decision, the first month is a habit.',
+    'No shortcuts, only work.',
+    'Strong people are made in the quiet hours.',
+    'Chase the feeling after the workout.',
+    'Your future body is built in today\'s session.',
+    'Hard work beats talent when talent does not train.',
+    'A good session starts with showing up.',
+    'Do something today your future self will thank you for.',
+    'Stay patient. Stay consistent. Stay lifting.',
+    'Failure is just a heavy set you will hit next time.',
+    'Mind over weights.',
+    'Earn it. Then rest.',
+    'Don\'t stop when it hurts. Stop when you are done.',
+    'Great things are lifted one rep at a time.',
+    'Eat like you train, train like you mean it.',
+    'Little by little, a little becomes a lot.',
+    'Be proud of every session, however small.',
+    'Wake up. Warm up. Work up.',
+    'Form first. Ego last.',
+    'The bar does not care how you feel. Lift anyway.',
+    'It is a good day to get a little stronger.',
+    'Make the hard days count.',
+    'Train today, thank yourself later.',
+    'Believe in the sets you have not done yet.',
+    'Your streak is made of ordinary days.',
+    'Leave nothing in the tank, then recover fully.',
+    'Do not compare your chapter one to someone\'s chapter twenty.',
+    'Build the body you will want at fifty.',
+    'One workout at a time, one day at a time.',
+    'Quiet confidence is made under the bar.',
+    'Strength is a skill. Practise it.',
+    'Consistency is the quiet superpower.',
+    'Today you are lifting more than weights.',
+    'Be the reason you do not skip leg day.',
+    'Rest, eat, sleep, lift. Repeat.',
+    'Your only job today is the next set.',
+    'Heavy is relative. Progress is personal.',
+    'Lift like the rack is watching.',
+    'Don\'t wait for motivation. Build the habit.',
+    'Show up tired. Leave proud.',
+    'You are one session closer than yesterday.',
+    'Strong is a decision you make again each day.',
+    'Own the warm-up, own the session.'];
+  // one quote card, shuffled once per visit, advancing every 15 seconds or on tap; the colour changes with each quote
+  var quoteOrder = null, quoteAt = 0, quoteTimer = 0;
+  function shuffled() { var a = QUOTES.map(function (q, i) { return i; }), i, j, t; for (i = a.length - 1; i > 0; i--) { j = Math.floor(Math.random() * (i + 1)); t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  function quoteHTML() {
+    if (!quoteOrder) { quoteOrder = shuffled(); }
+    return '<button type="button" class="d-card d-quote q' + (quoteAt % 3) + '" data-act="quote" aria-label="Motivation quote, tap for another"><p class="quote">“' + QUOTES[quoteOrder[quoteAt % quoteOrder.length]] + '”</p></button>';
   }
+  function nextQuote() {
+    var card = document.querySelector('.d-quote'); if (!card) { return; }
+    quoteAt++; var p = card.querySelector('.quote');
+    var swap = function () { p.textContent = '“' + QUOTES[quoteOrder[quoteAt % quoteOrder.length]] + '”'; card.className = 'd-card d-quote q' + (quoteAt % 3); p.style.opacity = ''; };
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { swap(); } else { p.style.opacity = '0'; setTimeout(swap, 220); }
+  }
+  function startQuotes() { clearInterval(quoteTimer); if (document.querySelector('.d-quote')) { quoteTimer = setInterval(function () { if (document.visibilityState === 'visible') { nextQuote(); } }, 15000); } }
 
   function dashParts(t) {
     var info = Store.dayInfo(t), d = Store.parse(t), plan = Data.planFor(d.getDay()), all = Store.allLogs();
@@ -97,7 +203,7 @@
 
   function viewToday() {
     var t = Store.today(), P = dashParts(t), dl = deloadHTML(t);
-    var h = '<div class="dash today"><section class="d-card d-hero">' + P.hero + '</section><section class="d-card d-week">' + P.week + '</section>' + quoteHTML(t) + (dl ? '<section class="d-card d-note">' + dl + '</section>' : '') + '</div>';
+    var h = '<div class="dash today"><section class="d-card d-hero">' + P.hero + '</section><section class="d-card d-week">' + P.week + '</section>' + quoteHTML() + (dl ? '<section class="d-card d-note">' + dl + '</section>' : '') + '</div>';
     h += '<p class="sync-line" id="sync-line">' + esc(syncText()) + '</p>';
     if (!Store.persistent) { h += '<p class="warn">This browser is not saving data (private mode or storage blocked). Export a backup from the Plan tab before you close it.</p>'; }
     return h;
@@ -614,7 +720,7 @@
   function render(keepScroll) {
     Engine.unmountAll(); if (window.Engine3D) { Engine3D.unmountAll(); }
     var r = route(), gate = !Store.user() ? 'login' : Store.needsSetup() ? 'setup' : '';
-    document.body.classList.toggle('gated', !!gate); view.setAttribute('data-r', gate || r.name);
+    document.body.classList.toggle('gated', !!gate); view.setAttribute('data-r', gate || r.name); clearInterval(quoteTimer);
     if (gate || r.name === 'summary') { Rest.hide(); }
     view.innerHTML = gate ? (gate === 'login' ? viewLogin() : viewSetup()) : views[r.name](r.arg);
     document.querySelectorAll('.tabs a').forEach(function (a) {
@@ -622,6 +728,7 @@
       if (on) { a.setAttribute('aria-current', 'page'); } else { a.removeAttribute('aria-current'); }
     });
     view.querySelectorAll('.muscles').forEach(function (box) { showMuscle(box, box.closest('details') ? Data.byId[box.closest('details').dataset.ex].mus.view : 'front'); });
+    startQuotes();
     if (!keepScroll) { window.scrollTo(0, 0); }
     var title = { today: 'Today', pick: 'Choose a muscle', calendar: 'Calendar', progress: 'Dashboard', plan: 'Plan', m: r.arg && Data.MUSCLES[r.arg] ? Data.MUSCLES[r.arg].name : 'Workout', summary: 'Summary' }[r.name];
     document.title = gate ? 'Gym Tracker' : title + ' | Gym Tracker';
@@ -683,6 +790,7 @@
         if (act === 'req-send') { window.open('https://github.com/umar8092/gym-tracker/issues/new?title=' + encodeURIComponent(rt + ': ' + rx.slice(0, 60)) + '&body=' + encodeURIComponent(rbody), '_blank', 'noopener'); }
         else if (navigator.clipboard) { navigator.clipboard.writeText(rt + ': ' + rbody).then(function () { toast('Copied'); }, function () { toast('Could not copy'); }); }
         break;
+      case 'quote': nextQuote(); startQuotes(); break;
       case 'share-week':
         var wtxt = weekSummaryText();
         if (navigator.share) { navigator.share({ text: wtxt }).catch(function () {}); } else if (navigator.clipboard) { navigator.clipboard.writeText(wtxt).then(function () { toast('Week summary copied'); }, function () { toast('Could not copy'); }); } else { toast('Sharing is not available here'); } break;
