@@ -67,6 +67,8 @@
     return h;
   }
 
+  function lookPref() { try { return JSON.parse(localStorage.getItem('gymtracker.look')) || {}; } catch (e) { return {}; } }
+
   // missed muscles from the last 6 days that are not made up yet, with a link to train them now
   function catchUp(t) {
     var out = [], i;
@@ -409,7 +411,9 @@
     var rc = Rest.cfg();
     h += '<div class="sec"><h2>Rest timer</h2><div class="switch"><span id="rt-l">Start a timer after each set</span><button type="button" role="switch" aria-checked="' + rc.on + '" aria-labelledby="rt-l" data-act="rest-on"></button></div>' +
       '<div class="modes four" role="group" aria-label="Rest length in seconds" style="margin-top:8px">' + [60, 90, 120, 180].map(function (v) { return '<button type="button" class="chip" data-act="rest-sec" data-v="' + v + '" aria-pressed="' + (rc.sec === v) + '">' + v + ' s</button>'; }).join('') + '</div></div>';
-    h += '<div class="sec"><h2>Appearance</h2><div class="switch"><span id="dm-l">Dark mode</span><button type="button" role="switch" aria-checked="' + isDark() + '" aria-labelledby="dm-l" data-act="theme"></button></div></div>';
+    h += '<div class="sec"><h2>Appearance</h2><div class="switch"><span id="dm-l">Dark mode</span><button type="button" role="switch" aria-checked="' + isDark() + '" aria-labelledby="dm-l" data-act="theme"></button></div>' +
+      '<p class="sub" style="margin-top:14px">3D figure look (this device)</p><div class="modes four" role="group" aria-label="Skin tone">' + [['light', 'Light'], ['tan', 'Tan'], ['brown', 'Brown'], ['dark', 'Dark']].map(function (o) { return '<button type="button" class="chip" data-act="look" data-k="skin" data-v="' + o[0] + '" aria-pressed="' + ((lookPref().skin || 'light') === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="modes four" role="group" aria-label="Hair" style="margin-top:8px">' + [['', 'Bald'], ['black', 'Black'], ['brown', 'Brown'], ['blond', 'Blond']].map(function (o) { return '<button type="button" class="chip" data-act="look" data-k="hair" data-v="' + o[0] + '" aria-pressed="' + ((lookPref().hair || '') === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div></div>';
     h += '<div class="sec"><h2>Account</h2><p>Signed in as <b>' + esc(Store.user()) + '</b>.</p><p class="sub" id="sync-state">' + esc(syncText()) + '</p>' +
       '<div class="btns"><button class="btn small" type="button" data-act="sync-now">Sync now</button><button class="link" type="button" data-act="switch-user">Switch user</button></div></div>';
     h += '<div class="sec"><h2>Your data</h2><p class="sub">Saved on this device and copied to the cloud when online. You can also export a backup file.</p>' +
@@ -568,6 +572,9 @@
         var sk = num(document.getElementById('sk').value), gk = num(document.getElementById('gk').value);
         if (!(sk > 20) || !(gk > 20)) { toast('Enter both weights in kg'); break; }
         Store.setProfile({ startKg: sk, goalKg: gk }); toast('Goal saved'); break;
+      case 'look':
+        var lk = lookPref(); lk[el.dataset.k] = el.dataset.v; try { localStorage.setItem('gymtracker.look', JSON.stringify(lk)); } catch (e) {}
+        el.parentNode.querySelectorAll('.chip').forEach(function (b) { b.setAttribute('aria-pressed', String(b === el)); }); break;
       case 'theme':
         var dark = !isDark(); document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light'); Store.setTheme(dark ? 'dark' : 'light');
         el.setAttribute('aria-checked', String(dark)); Engine.redraw(); if (window.Engine3D) { Engine3D.redraw(); } break;

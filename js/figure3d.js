@@ -15,7 +15,9 @@ const V3 = THREE.Vector3, DEG = Math.PI / 180, ROOT = new URL('../', import.meta
 const reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 const ease = x => 0.5 - 0.5 * Math.cos(Math.PI * x);
 const norm360 = y => ((y % 360) + 360) % 360, angDist = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
-const SKIN_TINT = 0xecd2c2;
+// look chosen in the Plan tab (per device): skin tint multiplies the skin texture, hair is a simple cap on the head
+const SKINS = { light: 0xecd2c2, tan: 0xc9a283, brown: 0x9b6f50, dark: 0x6a4630 }, HAIRS = { black: 0x15110f, brown: 0x4a2f1c, blond: 0xb58f4d };
+function look() { try { return JSON.parse(localStorage.getItem('gymtracker.look')) || {}; } catch (e) { return {}; } }
 
 /* ---------- shared renderer + model (loaded once) ---------- */
 let sharedP = null, R = null;
@@ -122,9 +124,24 @@ function build(st, sh) {
 
   const root = SkeletonUtils.clone(sh.gltf.scene); let body = null;
   root.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } if (o.isSkinnedMesh && o.name.includes('SuperHero')) { body = o; } });
-  const mm = muscleMaterial(body); body.material.color.set(SKIN_TINT);
+  const mm = muscleMaterial(body); body.material.color.set(SKINS[look().skin] || SKINS.light);
   mm.set(st.ex.mus ? st.ex.mus.p : [], st.ex.mus ? st.ex.mus.s : []);
   scene.add(root);
+  const hair = HAIRS[look().hair];
+  if (hair) {   // half sphere over the skull, tilted back so the face stays clear; attach() keeps its world position under the head bone
+    root.updateMatrixWorld(true);
+    let headB = null; root.traverse(o => { if (o.isBone && o.name === 'Head') { headB = o; } });
+    if (headB) {
+      // size the cap from the real head: bounding box of the body vertices above the neck joint
+      const hy = headB.getWorldPosition(new THREE.Vector3()).y, pos = body.geometry.attributes.position, v = new THREE.Vector3(), bb = new THREE.Box3();
+      for (let i = 0; i < pos.count; i++) { v.fromBufferAttribute(pos, i).applyMatrix4(body.matrixWorld); if (v.y > hy + 0.02) { bb.expandByPoint(v); } }
+      const c = bb.getCenter(new THREE.Vector3()), sz = bb.getSize(new THREE.Vector3());
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 20, 0, Math.PI * 2, 0, Math.PI * 0.5), new THREE.MeshStandardMaterial({ color: hair, roughness: 0.85 }));
+      cap.scale.set(sz.x * 1.05, sz.y * 1.15, sz.z * 1.06); cap.castShadow = true; cap.rotation.x = 0.18;   // tipped so the back comes lower than the forehead
+      cap.position.set(c.x, bb.max.y + 0.014 - sz.y * 1.15 * 0.5, c.z - sz.z * 0.05);
+      headB.attach(cap);
+    }
+  }
   const floor = makeFloor(); floor.material.transparent = true; floor.material.opacity = 0.55; scene.add(floor);
   const shadow = new THREE.Mesh(new THREE.CircleGeometry(1.6, 48), new THREE.ShadowMaterial({ opacity: 0.22 })); shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.002; shadow.receiveShadow = true; scene.add(shadow);
 

@@ -139,6 +139,8 @@
     }
   };
   Store.onWrite(function () { if (Store.user()) { schedule(); } });
+  // idle refresh: pick up changes from another phone while this one stays open (only when visible, signed in and online)
+  setInterval(function () { if (document.visibilityState === 'visible' && navigator.onLine !== false && Store.user()) { run(); } }, 60000);
   window.addEventListener('online', function () { run(); });
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { run(); } });
 })();
