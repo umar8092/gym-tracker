@@ -230,7 +230,7 @@
     if (info.kind === 'done') {
       var logs = Store.logsOn(t), names = info.trained.map(mName).join(' and '), rowsN = 0;
       ticker += '<span>' + esc(names) + ' night</span><span>Fight over</span>';
-      main = '<div class="main-event noimg"><div class="me-l"><span class="badge red">Fight over</span><h1>' + esc(names) + ' done</h1><p class="vs">' + logs.length + ' rounds · ' + Math.round(Store.volume(logs)).toLocaleString() + ' kg lifted · about ' + Stats.calories(logs, cur) + ' kcal (estimate)</p>' +
+      main = '<div class="main-event noimg"><div class="me-l"><span class="badge red">Fight over</span><h1>' + esc(names) + ' done</h1><p class="vs">' + logs.length + (logs.length === 1 ? ' round' : ' rounds') + ' · ' + Math.round(Store.volume(logs)).toLocaleString() + ' kg lifted · about ' + Stats.calories(logs, cur) + ' kcal (estimate)</p>' +
         '<p class="done-note">Nice work.</p><div class="today-actions"><a class="btn primary" href="#/m/' + info.trained[0] + '">Add more rounds</a><a class="link" href="#/summary/' + info.trained[0] + '">See today\'s summary</a><a class="link" href="#/pick">Train another muscle</a></div></div></div>';
       info.trained.forEach(function (m) { var seen = {}; logs.filter(function (l) { return l.m === m; }).forEach(function (l) { if (!seen[l.e] && Data.byId[l.e]) { seen[l.e] = 1; under += '<li>' + doneRow(Data.byId[l.e], rowsN++, t, m) + '</li>'; } }); });
     } else if (plan) {
@@ -247,6 +247,7 @@
     } else {
       var nx = nextCard(t);
       ticker += '<span>Rest day</span>';
+      if (nx) { var nxs = []; Data.planAll(Store.parse(nx.date).getDay()).forEach(function (m) { visibleEx(m).forEach(function (e) { nxs.push([e, m]); }); }); nxs.slice(0, 6).forEach(function (q, i) { under += '<li>' + boutRow(q[0], i, t, q[1]) + '</li>'; }); if (nxs.length) { under = '<li class="under-h"><span class="lab"><span>Next card: ' + DAYS[Store.parse(nx.date).getDay()] + ', ' + Data.planAll(Store.parse(nx.date).getDay()).map(mName).join(' + ') + '</span><span>' + nxs.length + ' bouts</span></span></li>' + under; } }
       main = '<div class="main-event rest"><div class="me-l"><span class="badge">Rest day</span><h1>Rest day</h1><p class="vs">Recovery is part of the plan' + (nx ? '. Next card: ' + DAYS[Store.parse(nx.date).getDay()] + ', ' + mName(nx.muscle) : '') + '</p>' +
         '<div class="today-actions"><a class="btn primary" href="#/pick">Train anyway</a></div></div></div>';
     }
