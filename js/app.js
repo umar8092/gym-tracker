@@ -135,6 +135,11 @@
       '<p class="step"><b>How:</b> ' + esc(ex.how) + '</p><p class="step avoid"><b>Avoid:</b> ' + esc(ex.avoid) + '</p></div>';
   }
 
+  // what the equipment looks like, so the user can confirm the gym has it
+  function machineBlock(ex) {
+    return Machines.has(ex.id) ? '<div class="mach">' + Machines.svg(ex) + '<p class="look"><b>Look for:</b> ' + esc(ex.look) + '</p></div>' : '';
+  }
+
   function viewWorkout(id) {
     var m = Data.MUSCLES[id];
     if (!m) { return '<a class="crumb" href="#/">Back to today</a><h1>Not found</h1>'; }
@@ -146,6 +151,7 @@
       h += '<section class="ex" data-ex="' + ex.id + '"><div class="ex-head"><span class="ex-n">' + (i + 1) + '</span><div><h2>' + esc(ex.name) + '</h2>' +
         '<p class="ex-meta"><b>' + ex.sets + ' sets of ' + esc(ex.reps) + ' reps</b>, ' + ex.equip.toLowerCase() + '. ' + esc(ex.target) + '</p>' +
         (ex.confirm ? '<p class="confirm-note">Needs confirming that your gym has it.</p>' : '') + '</div></div>' +
+        (ex.confirm ? machineBlock(ex) : '') +
         '<div class="ex-log">' + loggerHTML(ex) + '</div>' +
         '<details class="guide" data-ex="' + ex.id + '"><summary>Form guide</summary>' + guideHTML(ex) + '</details></section>';
     });
@@ -255,8 +261,9 @@
       h += '<div class="plan-day"><p class="dname">' + DAYS[m.day] + '</p><h2>' + m.name + '</h2>';
       Data.exercisesFor(id).forEach(function (ex) {
         var off = Store.isHidden(ex.id);
-        h += '<div class="plan-ex' + (off ? ' off' : '') + '"><label><input type="checkbox" data-f="inc" data-id="' + ex.id + '"' + (off ? '' : ' checked') + '><span class="nm">' + esc(ex.name) + '</span></label>' +
-          '<span class="tg' + (ex.confirm ? ' cf' : '') + '">' + ex.equip + (ex.confirm ? ', to confirm' : '') + '</span></div>';
+        h += '<div class="plan-item"><div class="plan-ex' + (off ? ' off' : '') + '"><label><input type="checkbox" data-f="inc" data-id="' + ex.id + '"' + (off ? '' : ' checked') + '><span class="nm">' + esc(ex.name) + '</span></label>' +
+          '<span class="tg' + (ex.confirm ? ' cf' : '') + '">' + ex.equip + (ex.confirm ? ', to confirm' : '') + '</span></div>' +
+          (ex.confirm ? '<details><summary>What it looks like</summary>' + machineBlock(ex) + '</details>' : '') + '</div>';
       });
       h += '</div>';
     });

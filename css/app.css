@@ -298,3 +298,30 @@ svg.chart { display: block; width: 100%; height: auto; margin-top: 10px; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* ---------- equipment schematics ---------- */
+.mach { margin-top: 12px; }
+svg.mach-svg { display: block; width: 100%; max-width: 360px; height: auto; margin: 6px 0 0; }
+.mach .look { margin-top: 6px; font-size: 15px; color: var(--muted); max-width: 50ch; }
+.mc-floor { stroke: var(--line); stroke-width: 3; stroke-linecap: round; }
+.mc-frame { fill: var(--handle); stroke: none; }
+.mc-bar, .mc-bar2 { stroke: var(--handle); stroke-width: 5; stroke-linecap: round; fill: none; }
+.mc-bar2 { stroke: var(--ink); stroke-width: 6; }
+.mc-rail { stroke: var(--handle); stroke-width: 6; stroke-linecap: round; }
+.mc-cable { stroke: var(--ink); stroke-width: 1.6; fill: none; }
+.mc-stack { fill: var(--plate); }
+.mc-plate-line { stroke: var(--bg); stroke-width: 1; opacity: .7; }
+.mc-pad { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
+.mc-pad-line { fill: none; stroke: var(--accent); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; opacity: .5; }
+.mc-plateform { stroke: var(--ink); stroke-width: 6; stroke-linecap: round; }
+.mc-grip { fill: var(--ink); stroke: none; }
+.mc-head { fill: var(--skin); }
+.mc-limb { fill: none; stroke: var(--skin); stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; }
+.mc-move { fill: none; stroke: var(--ink); stroke-width: 2; stroke-dasharray: 4 4; }
+.mc-lead { stroke: var(--ink); stroke-width: 1; opacity: .6; }
+.mc-lab { fill: var(--ink); font-family: "Barlow", system-ui, sans-serif; font-size: 11px; font-weight: 500; }
+.plan-item { border-bottom: 1px solid var(--line); }
+.plan-item .plan-ex { border-bottom: 0; }
+.plan-item details > summary { list-style: none; cursor: pointer; font-size: 14px; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; min-height: 36px; display: flex; align-items: center; }
+.plan-item details > summary::-webkit-details-marker { display: none; }
+.plan-item details { padding: 0 0 10px 34px; }

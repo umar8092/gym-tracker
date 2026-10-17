@@ -1,0 +1,5 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="../css/app.css">
+<style>body{padding:16px} .g{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:18px} h3{font-size:20px}</style>
+<div class="g" id="g"></div>
+<script src="../js/data.js"></script><script src="../js/machines.js"></script>
+<script>document.getElementById('g').innerHTML=Data.EX.filter(function(e){return e.confirm}).map(function(e){return '<div><h3>'+e.name+'</h3>'+Machines.svg(e)+'<p class="muted">'+e.look+'</p></div>'}).join('')</script>
