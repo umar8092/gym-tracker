@@ -117,6 +117,28 @@
     return { perSide: out, achieved: r1(total - 2 * left / 100), exact: left === 0 };
   }
 
-  var Stats = { epley: epley, kgText: kgText, summarize: summarize, sessions: sessions, inRange: inRange, setDelta: setDelta, compare: compare, progress: progress, prFor: prFor, PR_TEXT: PR_TEXT, records: records, target: target, plates: plates };
+  // Body-weight trend: least-squares line over the last 28 days. weights: [{d:'YYYY-MM-DD', kg}] oldest first.
+  // Needs 3+ weigh-ins spanning 7+ days, otherwise null. perWeek < 0 means losing. etaDays only when moving toward the goal.
+  function trend(weights, goalKg, today) {
+    var day = function (s) { return Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)) / 864e5; };
+    var t = day(today), pts = weights.filter(function (w) { return day(w.d) >= t - 28 && day(w.d) <= t; });
+    if (pts.length < 3 || day(pts[pts.length - 1].d) - day(pts[0].d) < 7) { return null; }
+    var n = pts.length, mx = 0, my = 0, sxy = 0, sxx = 0;
+    pts.forEach(function (w) { mx += day(w.d) / n; my += w.kg / n; });
+    pts.forEach(function (w) { sxy += (day(w.d) - mx) * (w.kg - my); sxx += (day(w.d) - mx) * (day(w.d) - mx); });
+    var slope = sxy / sxx, now = my + slope * (t - mx), togo = goalKg - now;
+    var out = { perWeek: r1(slope * 7), nowKg: r1(now), etaDays: null };
+    if (Math.abs(togo) < 0.3) { out.etaDays = 0; } else if (slope * togo > 0) { out.etaDays = Math.ceil(togo / slope); }
+    return out;
+  }
+
+  // Hard sets per group in [from, to]. exGroup: {exerciseId: group}.
+  function setsByGroup(logs, exGroup, from, to) {
+    var out = {};
+    logs.forEach(function (l) { var g = exGroup[l.e]; if (g && l.d >= from && l.d <= to) { out[g] = (out[g] || 0) + 1; } });
+    return out;
+  }
+
+  var Stats = { epley: epley, kgText: kgText, summarize: summarize, sessions: sessions, inRange: inRange, setDelta: setDelta, compare: compare, progress: progress, prFor: prFor, PR_TEXT: PR_TEXT, records: records, target: target, plates: plates, trend: trend, setsByGroup: setsByGroup };
   if (typeof module !== 'undefined') { module.exports = Stats; } else { window.Stats = Stats; }
 })();

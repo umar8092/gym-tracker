@@ -238,7 +238,17 @@
   var byId = {};
   EX.forEach(function (e) { byId[e.id] = e; });
 
+  // user-made exercises (from Store): replaces the previous set, keeps the built-in list untouched
+  function setCustom(map) {
+    for (var i = EX.length - 1; i >= 0; i--) { if (EX[i].custom) { delete byId[EX[i].id]; EX.splice(i, 1); } }
+    Object.keys(map || {}).forEach(function (id) {
+      var c = map[id], e = { id: id, custom: true, muscle: c.muscle, name: c.name, equip: c.equip, sets: c.sets, reps: c.reps, target: 'Your own exercise.', how: '', avoid: '', mus: null };
+      EX.push(e); byId[id] = e;
+    });
+  }
+
   window.Data = {
+    setCustom: setCustom,
     MUSCLES: MUSCLES, ORDER: ORDER, EX: EX, byId: byId,
     // JS getDay(): 1 = Monday ... 5 = Friday
     planFor: function (jsDay) {

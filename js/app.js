@@ -34,17 +34,17 @@
         '<div class="today-actions"><a class="btn primary" href="#/m/' + info.trained[0] + '">Add more sets</a><a class="link" href="#/pick">Train another muscle</a></div>';
     } else if (plan) {
       h += '<h1>' + mName(plan) + '</h1><p class="lead">' + esc(Data.MUSCLES[plan].blurb) + ' ' + visibleEx(plan).length + ' exercises.</p>' +
-        '<div class="today-actions"><a class="btn primary" href="#/m/' + plan + '">Start ' + mName(plan).toLowerCase() + '</a><a class="link" href="#/pick">Choose a different muscle</a></div>';
+        '<div class="today-actions"><a class="btn primary" href="#/m/' + plan + '">Start ' + mName(plan).toLowerCase() + '</a><a class="link" href="#/pick">Choose a different muscle</a></div>' + catchUp(t);
     } else {
       h += '<h1>Rest day</h1><p class="lead">Nothing is planned today. Recovery is part of the plan.</p>' +
-        '<div class="today-actions"><a class="btn" href="#/pick">Train anyway</a></div>';
+        '<div class="today-actions"><a class="btn" href="#/pick">Train anyway</a></div>' + catchUp(t);
     }
     h += '</div>';
 
     var ws = weekStart(t), cells = '';
     for (var i = 0; i < 5; i++) {
       var ds = Store.addDays(ws, i), inf = Store.dayInfo(ds), pm = inf.planned;
-      var label = inf.kind === 'done' ? 'Done' : inf.kind === 'missed' ? 'Missed' : inf.kind === 'today' ? 'Today' : '';
+      var label = inf.kind === 'done' ? 'Done' : inf.kind === 'missed' ? 'Missed' : inf.kind === 'madeup' ? 'Made up' : inf.kind === 'today' ? 'Today' : '';
       var shown = inf.trained.length ? inf.trained[0] : pm;
       cells += '<a class="wd ' + inf.kind + '" href="#/calendar/' + ds + '"><span class="dn">' + DAYS[(i + 1) % 7].slice(0, 3) + '</span><span class="mn">' + mName(shown) + '</span><span class="st">' + (label || '&nbsp;') + '</span></a>';
     }
@@ -65,6 +65,13 @@
     h += '<p class="sync-line" id="sync-line">' + esc(syncText()) + '</p>';
     if (!Store.persistent) { h += '<p class="warn">This browser is not saving data (private mode or storage blocked). Export a backup from the Plan tab before you close it.</p>'; }
     return h;
+  }
+
+  // missed muscles from the last 6 days that are not made up yet, with a link to train them now
+  function catchUp(t) {
+    var out = [], i;
+    for (i = 1; i <= 6; i++) { var inf = Store.dayInfo(Store.addDays(t, -i)); if (inf.kind === 'missed' && out.indexOf(inf.planned) < 0) { out.push(inf.planned); } }
+    return out.length ? '<p class="muted catch">Missed this week: ' + out.map(function (m) { return '<a class="link" href="#/m/' + m + '">Train ' + mName(m).toLowerCase() + ' now</a>'; }).join(' · ') + '</p>' : '';
   }
 
   /* =========================================================  PICK  */
@@ -175,6 +182,7 @@
   }
 
   function guideHTML(ex) {
+    if (ex.custom) { return '<div class="guide-body"><p class="fig-note">This is your own exercise, so there is no figure or form text. Add a note under History and notes to remember your setup.</p><button class="link" type="button" data-act="del-custom" data-id="' + ex.id + '">Delete this exercise</button></div>'; }
     return '<div class="guide-body">' + machineBlock(ex) +
       (ex.fig ? '<div class="fig" data-fig="' + ex.id + '">' + figureHTML(ex) + '</div>'
               : '<p class="fig-note">3D form animation for this exercise is coming. Use the diagram and steps below for now.</p>') +
@@ -287,11 +295,11 @@
     for (var d = 1; d <= n; d++) {
       var ds = y + '-' + (mo + 1 < 10 ? '0' : '') + (mo + 1) + '-' + (d < 10 ? '0' : '') + d, inf = Store.dayInfo(ds);
       var shown = inf.trained.length ? inf.trained[0] : inf.planned;
-      if (inf.kind === 'done' || inf.kind === 'missed') { planN += inf.planned ? 1 : 0; doneN += inf.kind === 'done' && inf.planned ? 1 : 0; }
+      if (inf.kind === 'done' || inf.kind === 'missed' || inf.kind === 'madeup') { planN += inf.planned ? 1 : 0; doneN += (inf.kind === 'done' || inf.kind === 'madeup') && inf.planned ? 1 : 0; }
       h += '<button type="button" class="cd ' + inf.kind + (ds === t ? ' today' : '') + '" data-act="day" data-d="' + ds + '" aria-pressed="' + (ds === calState.sel) + '" aria-label="' +
         longDate(ds) + (shown ? ', ' + mName(shown) : ', rest') + ', ' + inf.kind + '">' + d + (shown && inf.kind !== 'none' ? '<small>' + mName(shown).slice(0, 3) + '</small>' : '') + '</button>';
     }
-    h += '</div><div class="cal-legend"><span><i class="lg done"></i>Trained</span><span><i class="lg missed"></i>Missed</span><span><i class="lg"></i>Planned or rest</span></div>';
+    h += '</div><div class="cal-legend"><span><i class="lg done"></i>Trained</span><span><i class="lg missed"></i>Missed</span><span><i class="lg madeup"></i>Made up later</span><span><i class="lg"></i>Planned or rest</span></div>';
     h += '<p class="muted" style="margin-top:10px">' + doneN + ' of ' + planN + ' planned days done this month so far.</p>';
     h += dayDetail(calState.sel);
     return h;
@@ -306,6 +314,7 @@
         var ex = Data.byId[id];
         return '<li>' + esc(ex ? ex.name : id) + '<small class="num">' + byEx[id].map(function (s) { return s.reps + ' × ' + kgStr(s.kg); }).join(', ') + ' kg</small></li>';
       }).join('') + '</ul>';
+    } else if (inf.kind === 'madeup') { h += '<p class="muted">Planned ' + mName(inf.planned) + ', trained later that week.</p>';
     } else if (inf.kind === 'missed') { h += '<p class="muted">Planned ' + mName(inf.planned) + ', nothing logged.</p>'; }
     else if (inf.kind === 'rest') { h += '<p class="muted">Rest day.</p>'; }
     else if (inf.kind === 'upcoming') { h += '<p class="muted">Planned: ' + mName(inf.planned) + '.</p>'; }
@@ -323,6 +332,12 @@
         { goal: p.goalKg, unit: ' kg', aria: 'Body weight over time, latest ' + kgStr(ws[ws.length - 1].kg) + ' kilograms, goal ' + kgStr(p.goalKg),
           xLabel: function (x) { var d = new Date(x * 864e5); d = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); return d.getDate() + ' ' + MONTHS[d.getMonth()].slice(0, 3); } });
     } else { h += '<p class="empty">Add a second weigh-in and your trend line appears here.</p>'; }
+    var tr = Stats.trend(ws, p.goalKg, t);
+    if (tr) {
+      var lose = tr.perWeek < 0, pace = kgStr(Math.abs(tr.perWeek)) + ' kg a week ' + (lose ? 'down' : 'up');
+      h += '<p class="trend">Trend: ' + pace + ', about ' + kgStr(tr.nowKg) + ' kg today. ' +
+        (tr.etaDays === 0 ? 'You are at your goal.' : tr.etaDays ? 'At this pace you reach ' + kgStr(p.goalKg) + ' kg around ' + longDate(Store.addDays(t, tr.etaDays)) + '.' : 'You are moving away from your goal weight right now.') + '</p>';
+    } else if (ws.length >= 2) { h += '<p class="trend">Three weigh-ins over at least a week show your pace and goal date.</p>'; }
     h += '<form class="row-form" data-form="weight"><div class="fld"><label for="wd">Date</label><input id="wd" class="text-in" type="date" value="' + t + '" max="' + t + '"></div>' +
       '<div class="fld"><label for="wk">Weight (kg)</label><input id="wk" class="text-in num" type="number" inputmode="decimal" step="0.1" min="20" max="400" value="' + kgStr(Store.currentKg()) + '"></div>' +
       '<button class="btn primary" type="submit">Save</button></form></div>';
@@ -336,6 +351,10 @@
     h += '<div class="sec"><h2>Workouts per week</h2><p class="sub">Days trained, last 8 weeks (week start date below each bar). Plan is 5.</p>' +
       Charts.bars(weeks, { max: 5, aria: 'Workouts per week for the last 8 weeks' }) + '</div>';
 
+    var grp = {}; Data.EX.forEach(function (e) { grp[e.id] = e.muscle; });
+    var ws0 = weekStart(t), cnt = Stats.setsByGroup(Store.allLogs(), grp, ws0, Store.addDays(ws0, 6)), prev = Stats.setsByGroup(Store.allLogs(), grp, Store.addDays(ws0, -28), Store.addDays(ws0, -1));
+    h += '<div class="sec"><h2>Muscle balance</h2><p class="sub">Sets logged per muscle. This week against your average over the 4 weeks before. Roughly 10 or more sets a week per muscle is a solid target.</p><ul class="bal">' +
+      Data.ORDER.map(function (g) { var a = cnt[g] || 0, b = Math.round((prev[g] || 0) / 4); return '<li><span>' + Data.MUSCLES[g].name + '</span><div class="bal-bar" role="img" aria-label="' + a + ' sets this week, ' + b + ' average"><i style="width:' + Math.min(100, a * 100 / 15) + '%"></i></div><b>' + a + '</b><small>avg ' + b + '</small></li>'; }).join('') + '</ul></div>';
     var ids = {}; Store.allLogs().forEach(function (l) { ids[l.e] = 1; });
     var list = Data.EX.filter(function (e) { return ids[e.id]; });
     h += '<div class="sec"><h2>Exercise progress</h2>';
@@ -377,6 +396,13 @@
       });
       h += '</div>';
     });
+    h += '<div class="sec"><h2>Add your own exercise</h2><p class="sub">For a move that is not in the list. It appears under the muscle you pick and syncs with your account. History stays if you hide it later.</p>' +
+      '<form class="row-form" data-form="custom"><div class="fld"><label for="cx-n">Name</label><input id="cx-n" class="text-in" maxlength="40" required></div>' +
+      '<div class="fld"><label for="cx-m">Muscle</label><select id="cx-m" class="text-in">' + Data.ORDER.map(function (g) { return '<option value="' + g + '">' + mName(g) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="fld"><label for="cx-e">Equipment</label><select id="cx-e" class="text-in">' + ['Dumbbells', 'Barbell', 'Machine', 'Bodyweight'].map(function (q) { return '<option>' + q + '</option>'; }).join('') + '</select></div>' +
+      '<div class="fld"><label for="cx-s">Sets</label><input id="cx-s" class="text-in num" type="number" min="1" max="10" value="3"></div>' +
+      '<div class="fld"><label for="cx-r">Reps</label><input id="cx-r" class="text-in" maxlength="8" value="10-12"></div>' +
+      '<button class="btn primary" type="submit">Add</button></form></div>';
     h += '<div class="sec"><h2>Your goal</h2><div class="row-form"><div class="fld"><label for="sk">Starting weight (kg)</label><input id="sk" class="text-in num" type="number" inputmode="decimal" step="0.1" value="' + kgStr(p.startKg) + '"></div>' +
       '<div class="fld"><label for="gk">Goal weight (kg)</label><input id="gk" class="text-in num" type="number" inputmode="decimal" step="0.1" value="' + kgStr(p.goalKg) + '"></div>' +
       '<button class="btn primary" type="button" data-act="save-goal">Save</button></div></div>';
@@ -528,6 +554,8 @@
       case 'copy-summary':
         if (navigator.clipboard) { navigator.clipboard.writeText(summaryText_).then(function () { toast('Summary copied'); }, function () { toast('Could not copy'); }); } else { toast('Copy is not available here'); }
         break;
+      case 'del-custom':
+        if (window.confirm('Delete this exercise? Sets you already logged stay in your history.')) { Store.removeCustom(el.dataset.id); toast('Exercise deleted'); render(true); } break;
       case 'rm':
         Store.removeSet(el.dataset.id); toast('Set removed'); refreshLogger(exId); break;
       case 'finish': toast('Workout saved'); break;
@@ -604,6 +632,11 @@
       var now = num(document.getElementById('su-now').value), goal = num(document.getElementById('su-goal').value);
       if (!(now >= 20 && now <= 400) || !(goal >= 20 && goal <= 400)) { document.getElementById('setup-err').textContent = 'Enter both weights in kg.'; return; }
       Store.setProfile({ startKg: now, goalKg: goal }); Store.addWeight(Store.today(), now); location.hash = '#/'; render();
+    } else if (f === 'custom') {
+      var cn = document.getElementById('cx-n').value.trim(), cs = parseInt(document.getElementById('cx-s').value, 10), cr = document.getElementById('cx-r').value.trim();
+      if (!cn || !(cs >= 1 && cs <= 10) || !/^\d{1,2}(-\d{1,2})?$/.test(cr)) { toast('Give it a name, 1 to 10 sets and reps like 10 or 8-12'); return; }
+      if (!Store.addCustom({ name: cn, muscle: document.getElementById('cx-m').value, equip: document.getElementById('cx-e').value, sets: cs, reps: cr })) { toast('You can add up to 12 own exercises'); return; }
+      toast('Exercise added'); render(true);
     } else if (f === 'weight') {
       e.preventDefault();
       var d = document.getElementById('wd').value, kg = num(document.getElementById('wk').value);

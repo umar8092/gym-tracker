@@ -366,3 +366,14 @@ svg.ar { width: 10px; height: 10px; fill: currentColor; flex: none; }
 .rest.over { background: var(--accent); color: var(--on-accent); }
 @media (min-width: 820px) { .rest { bottom: 24px; } }
 .gated .rest { display: none; }
+
+.trend{margin:10px 0 0;}
+.bal{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:10px}
+.bal li{display:grid;grid-template-columns:5.5rem 1fr 2rem 4.5rem;align-items:center;gap:10px}
+.bal-bar{height:10px;border-radius:5px;background:var(--line,#2a3236);overflow:hidden}
+.bal-bar i{display:block;height:100%;background:var(--accent)}
+.bal small{color:var(--muted,#8a969b)}
+.wd.madeup .st{color:var(--muted)}
+.cd.madeup{border-style:dashed;color:var(--muted)}
+.lg.madeup{border-style:dashed}
+.catch{margin-top:10px}

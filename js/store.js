@@ -15,12 +15,13 @@
   try { user = localStorage.getItem(USER_KEY) || ''; } catch (e) { persistent = false; }
 
   function fresh() {
-    return { profile: { startKg: null, goalKg: null, startDate: ymd(new Date()) }, weights: [], logs: [], hidden: {}, notes: {}, settings: { u: 0, dirty: false }, pull: { logs: 0, weights: 0 } };
+    return { profile: { startKg: null, goalKg: null, startDate: ymd(new Date()) }, weights: [], logs: [], hidden: {}, notes: {}, custom: {}, settings: { u: 0, dirty: false }, pull: { logs: 0, weights: 0 } };
   }
   function normalize(o) {
     var d = fresh(); for (var k in d) { if (!(k in o)) { o[k] = d[k]; } }
     o.logs.forEach(function (l) { if (typeof l.id === 'number') { l.id = 'o' + l.id + uid(); l.u = l.ts || now(); l.dirty = true; } if (!l.u) { l.u = l.ts || now(); l.dirty = true; } });
     o.weights.forEach(function (w) { if (!w.u) { w.u = now(); w.dirty = true; } });
+    Data.setCustom(o.custom);
     return o;
   }
   function load(name) {
@@ -84,6 +85,14 @@
     // short per-exercise notes (seat height, grip...). Kept small: they travel inside the settings document.
     note: function (exId) { return db.notes[exId] || ''; },
     setNote: function (exId, text) { text = String(text).trim().slice(0, 140); if (text) { db.notes[exId] = text; } else { delete db.notes[exId]; } touchSettings(); wrote(); },
+    // own exercises travel inside the settings document (limit keeps it under the 6000 character cap)
+    customCount: function () { return Object.keys(db.custom).length; },
+    addCustom: function (c) {
+      if (Store.customCount() >= 12) { return false; }
+      var id = 'c-' + uid(); db.custom[id] = { id: id, name: c.name, muscle: c.muscle, equip: c.equip, sets: c.sets, reps: c.reps };
+      Data.setCustom(db.custom); touchSettings(); wrote(); return id;
+    },
+    removeCustom: function (id) { delete db.custom[id]; delete db.hidden[id]; Data.setCustom(db.custom); touchSettings(); wrote(); },
     setHidden: function (id, hide) { if (hide) { db.hidden[id] = true; } else { delete db.hidden[id]; } touchSettings(); wrote(); },
 
     /* ---- body weight ---- */
@@ -103,14 +112,18 @@
       else if (trained.length) { kind = 'done'; }
       else if (date > t) { kind = planned ? 'upcoming' : 'rest'; }
       else if (date === t) { kind = planned ? 'today' : 'rest'; }
-      else { kind = planned ? 'missed' : 'rest'; }
+      else if (!planned) { kind = 'rest'; }
+      else { // a missed day is made up if that muscle was trained within the next 6 days
+        var end = addDays(date, 6);
+        kind = live().some(function (l) { return l.m === planned && l.d > date && l.d <= end; }) ? 'madeup' : 'missed';
+      }
       return { date: date, planned: planned, trained: trained, kind: kind };
     },
     streak: function () {
       var n = 0, d = Store.today(), guard = 0;
       while (guard++ < 400) {
         var i = Store.dayInfo(d);
-        if (i.kind === 'none' || i.kind === 'missed') { break; }
+        if (i.kind === 'none' || i.kind === 'missed') { break; }  // madeup: neither counts nor breaks
         if (i.kind === 'done') { n++; }
         d = Store.addDays(d, -1);
       }
@@ -129,7 +142,7 @@
       db = normalize(o); wrote();
     },
     // clears this device only; the cloud copy comes back at the next sync
-    reset: function () { db = fresh(); wrote(); },
+    reset: function () { db = fresh(); Data.setCustom({}); wrote(); },
 
     /* ---- sync hooks (used by sync.js) ---- */
     onWrite: function (f) { writeFns.push(f); },
@@ -139,7 +152,7 @@
       return {
         logs: db.logs.filter(function (l) { return l.dirty; }).map(function (l) { return Object.assign({}, l); }),
         weights: db.weights.filter(function (w) { return w.dirty; }).map(function (w) { return Object.assign({}, w); }),
-        settings: db.settings.dirty ? { u: db.settings.u, profile: db.profile, hidden: db.hidden, notes: db.notes } : null
+        settings: db.settings.dirty ? { u: db.settings.u, profile: db.profile, hidden: db.hidden, notes: db.notes, custom: db.custom } : null
       };
     },
     ack: function (sent) {
@@ -164,7 +177,7 @@
         else if (r.u > w.u) { w.kg = r.kg; w.u = r.u; w.dirty = false; changed = true; }
       });
       if (remote.settings && remote.settings.u > db.settings.u) {
-        db.profile = Object.assign(db.profile, remote.settings.profile); db.hidden = remote.settings.hidden || {}; db.notes = remote.settings.notes || {};
+        db.profile = Object.assign(db.profile, remote.settings.profile); db.hidden = remote.settings.hidden || {}; db.notes = remote.settings.notes || {}; db.custom = remote.settings.custom || {}; Data.setCustom(db.custom);
         db.settings = { u: remote.settings.u, dirty: false }; changed = true;
       } else if (!remote.settings && db.settings.u === 0 && !Store.needsSetup()) { touchSettings(); }
       if (remote.cursor) { db.pull = remote.cursor; }

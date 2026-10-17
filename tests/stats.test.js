@@ -59,4 +59,15 @@ t('plate calculator: exact, impossible, below bar', () => {
   const odd = S.plates(61, 20, av); assert.strictEqual(odd.exact, false); assert.strictEqual(odd.achieved, 60);
   assert.strictEqual(S.plates(15, 20, av), null); assert.deepStrictEqual(S.plates(20, 20, av).perSide, []);
 });
+t('trend: slope, goal date, too little data, wrong direction', () => {
+  const w = [['2026-01-01', 92], ['2026-01-08', 91.5], ['2026-01-15', 91], ['2026-01-22', 90.5]].map(([d, kg]) => ({ d, kg }));
+  const r = S.trend(w, 75, '2026-01-22'); assert.strictEqual(r.perWeek, -0.5); assert.strictEqual(r.nowKg, 90.5); assert.strictEqual(r.etaDays, 217);
+  assert.strictEqual(S.trend(w.slice(0, 2), 75, '2026-01-22'), null);
+  assert.strictEqual(S.trend(w, 95, '2026-01-22').etaDays, null);
+  assert.strictEqual(S.trend(w, 90.4, '2026-01-22').etaDays, 0);
+});
+t('setsByGroup: counts inside the range only', () => {
+  const logs = [L('2026-01-05', 'a', 8, 10), L('2026-01-06', 'a', 8, 10), L('2026-01-06', 'b', 8, 10), L('2026-01-20', 'a', 8, 10), L('2026-01-06', 'zz', 8, 10)];
+  assert.deepStrictEqual(S.setsByGroup(logs, { a: 'chest', b: 'back' }, '2026-01-05', '2026-01-11'), { chest: 2, back: 1 });
+});
 console.log(`\n${n} stats tests OK`);
