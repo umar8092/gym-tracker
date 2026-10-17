@@ -146,6 +146,14 @@
     return out;
   }
 
-  var Stats = { epley: epley, kgText: kgText, summarize: summarize, sessions: sessions, inRange: inRange, setDelta: setDelta, compare: compare, progress: progress, prFor: prFor, PR_TEXT: PR_TEXT, records: records, target: target, plates: plates, trend: trend, warmup: warmup, setsByGroup: setsByGroup };
+  // Rough energy use of a session (an estimate, usually within +-30%): time at ~3 MET plus the mechanical work of the lifts at ~22% muscle efficiency.
+  // A set is assumed to take about 2.5 minutes with rest. Bodyweight sets count as lifting 65% of body weight.
+  function calories(logs, bodyKg) {
+    if (!logs.length || !(bodyKg > 0)) { return 0; }
+    var joules = 0; logs.forEach(function (l) { joules += (l.kg > 0 ? l.kg : 0.65 * bodyKg) * l.reps * 9.81 * 0.5; });
+    return Math.round((3 * bodyKg * (logs.length * 2.5 / 60) + joules / 4184 / 0.22) / 5) * 5;
+  }
+
+  var Stats = { epley: epley, kgText: kgText, summarize: summarize, sessions: sessions, inRange: inRange, setDelta: setDelta, compare: compare, progress: progress, prFor: prFor, PR_TEXT: PR_TEXT, records: records, target: target, plates: plates, trend: trend, calories: calories, warmup: warmup, setsByGroup: setsByGroup };
   if (typeof module !== 'undefined') { module.exports = Stats; } else { window.Stats = Stats; }
 })();

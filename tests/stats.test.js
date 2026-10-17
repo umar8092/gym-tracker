@@ -75,4 +75,10 @@ t('warmup ramp: rounds to 2.5, skips tiny or duplicate sets', () => {
   assert.deepStrictEqual(S.warmup(10), [{ kg: 5, reps: 8 }, { kg: 7.5, reps: 5 }]);
   assert.deepStrictEqual(S.warmup(0), []);
 });
+t('calories: scales with sets and load, bodyweight counts, empty is 0', () => {
+  const mk = (n, r, k) => Array.from({ length: n }, () => L('d', 'a', r, k));
+  assert.strictEqual(S.calories(mk(12, 10, 60), 92), 175);
+  assert.ok(S.calories(mk(12, 10, 80), 92) > S.calories(mk(12, 10, 60), 92));
+  assert.ok(S.calories(mk(6, 10, 0), 92) > 0); assert.strictEqual(S.calories([], 92), 0);
+});
 console.log(`\n${n} stats tests OK`);

@@ -15,7 +15,7 @@
   try { user = localStorage.getItem(USER_KEY) || ''; } catch (e) { persistent = false; }
 
   function fresh() {
-    return { profile: { startKg: null, goalKg: null, startDate: ymd(new Date()) }, weights: [], logs: [], hidden: {}, notes: {}, custom: {}, settings: { u: 0, dirty: false }, pull: { logs: 0, weights: 0 } };
+    return { profile: { startKg: null, goalKg: null, startDate: ymd(new Date()) }, weights: [], logs: [], hidden: {}, notes: {}, custom: {}, measures: [], superset: {}, settings: { u: 0, dirty: false }, pull: { logs: 0, weights: 0 } };
   }
   function normalize(o) {
     var d = fresh(); for (var k in d) { if (!(k in o)) { o[k] = d[k]; } }
@@ -89,10 +89,20 @@
     note: function (exId) { return db.notes[exId] || ''; },
     setNote: function (exId, text) { text = String(text).trim().slice(0, 140); if (text) { db.notes[exId] = text; } else { delete db.notes[exId]; } touchSettings(); wrote(); },
     // own exercises travel inside the settings document (limit keeps it under the 6000 character cap)
+    // body measurements in cm, newest last. Travel inside the settings document, so capped (keeps it far under the 6000 character limit).
+    measures: function () { return db.measures.slice().sort(function (a, b) { return a.d < b.d ? -1 : 1; }); },
+    addMeasure: function (m) {
+      db.measures = db.measures.filter(function (x) { return x.d !== m.d; }); db.measures.push(m);
+      db.measures.sort(function (a, b) { return a.d < b.d ? -1 : 1; }); db.measures = db.measures.slice(-24); touchSettings(); wrote();
+    },
+    removeMeasure: function (d) { db.measures = db.measures.filter(function (x) { return x.d !== d; }); touchSettings(); wrote(); },
+    // superset: this exercise is done back to back with the one above it
+    isSuper: function (id) { return !!db.superset[id]; },
+    setSuper: function (id, on) { if (on) { db.superset[id] = 1; } else { delete db.superset[id]; } touchSettings(); wrote(); },
     customCount: function () { return Object.keys(db.custom).length; },
     addCustom: function (c) {
       if (Store.customCount() >= 12) { return false; }
-      var id = 'c-' + uid(); db.custom[id] = { id: id, name: c.name, muscle: c.muscle, equip: c.equip, sets: c.sets, reps: c.reps };
+      var id = 'c-' + uid(); db.custom[id] = { id: id, name: c.name, muscle: c.muscle, equip: c.equip, sets: c.sets, reps: c.reps }; if (c.timed) { db.custom[id].timed = 1; }
       Data.setCustom(db.custom); touchSettings(); wrote(); return id;
     },
     removeCustom: function (id) { delete db.custom[id]; delete db.hidden[id]; Data.setCustom(db.custom); touchSettings(); wrote(); },
@@ -155,7 +165,7 @@
       return {
         logs: db.logs.filter(function (l) { return l.dirty; }).map(function (l) { return Object.assign({}, l); }),
         weights: db.weights.filter(function (w) { return w.dirty; }).map(function (w) { return Object.assign({}, w); }),
-        settings: db.settings.dirty ? { u: db.settings.u, profile: db.profile, hidden: db.hidden, notes: db.notes, custom: db.custom } : null
+        settings: db.settings.dirty ? { u: db.settings.u, profile: db.profile, hidden: db.hidden, notes: db.notes, custom: db.custom, measures: db.measures, superset: db.superset } : null
       };
     },
     ack: function (sent) {
@@ -180,7 +190,7 @@
         else if (r.u > w.u) { w.kg = r.kg; w.u = r.u; w.dirty = false; changed = true; }
       });
       if (remote.settings && remote.settings.u > db.settings.u) {
-        db.profile = Object.assign(db.profile, remote.settings.profile); db.hidden = remote.settings.hidden || {}; db.notes = remote.settings.notes || {}; db.custom = remote.settings.custom || {}; Data.setCustom(db.custom);
+        db.profile = Object.assign(db.profile, remote.settings.profile); db.hidden = remote.settings.hidden || {}; db.notes = remote.settings.notes || {}; db.custom = remote.settings.custom || {}; Data.setCustom(db.custom); db.measures = remote.settings.measures || []; db.superset = remote.settings.superset || {};
         db.settings = { u: remote.settings.u, dirty: false }; changed = true;
       } else if (!remote.settings && db.settings.u === 0 && !Store.needsSetup()) { touchSettings(); }
       if (remote.cursor) { db.pull = remote.cursor; }

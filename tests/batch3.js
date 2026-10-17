@@ -13,8 +13,8 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
   const w = [21, 14, 7, 0].map((n, i) => ({ d: day(n), kg: 92 - i * 0.5, u: 1, dirty: false }));
   await signIn(page, 'umar', { logs: [lg(0, 'barbell-bench-press', 'chest'), lg(0, 'barbell-bench-press', 'chest')], weights: w, profile: { startKg: 92, goalKg: 75, startDate: day(40) } });
   await page.goto(URL + '#/progress'); await page.waitForTimeout(300);
-  const tr = await page.locator('.trend').textContent();
-  ok(/0\.5 kg a week down/.test(tr) && /reach 75 kg around/.test(tr), 'weight trend shows pace and goal date: ' + tr);
+  const tr = await page.locator('.trend').first().textContent();
+  ok(/0\.5 kg a week down/.test(tr) && /(reach 75 kg|Goal) around/.test(tr), 'weight trend shows pace and goal date: ' + tr);
   ok((await page.locator('.bal li').count()) === 5 && (await page.locator('.bal li').first().locator('b').textContent()) === '2', 'muscle balance lists 5 muscles, chest has 2 sets');
   // custom exercise
   await page.goto(URL + '#/plan');

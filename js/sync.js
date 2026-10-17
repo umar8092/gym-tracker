@@ -83,7 +83,7 @@
         if (r.status === 404) { return null; }
         if (r.status === 403) { var e = new Error('The cloud refused this username'); e.denied = true; throw e; }
         if (!r.ok) { throw new Error('Cloud error ' + r.status); }
-        return r.json().then(function (d) { var f = dec(d.fields); var j = JSON.parse(f.json); return { u: f.u, profile: j.profile, hidden: j.hidden, notes: j.notes, custom: j.custom }; });
+        return r.json().then(function (d) { var f = dec(d.fields); var j = JSON.parse(f.json); return { u: f.u, profile: j.profile, hidden: j.hidden, notes: j.notes, custom: j.custom, measures: j.measures, superset: j.superset }; });
       })
     ]).then(function (res) {
       return {
@@ -100,7 +100,7 @@
       writes.push({ update: { name: base + '/logs/' + l.id, fields: { d: enc(l.d), m: enc(l.m), e: enc(l.e), reps: encInt(l.reps), kg: { doubleValue: l.kg }, ts: encInt(l.ts), u: encInt(l.u), del: { booleanValue: !!l.del } } } });
     });
     p.weights.forEach(function (w) { writes.push({ update: { name: base + '/weights/' + w.d, fields: { kg: { doubleValue: w.kg }, u: encInt(w.u) } } }); });
-    if (p.settings) { writes.push({ update: { name: base + '/meta/settings', fields: { json: enc(JSON.stringify({ profile: p.settings.profile, hidden: p.settings.hidden, notes: p.settings.notes, custom: p.settings.custom })), u: encInt(p.settings.u) } } }); }
+    if (p.settings) { writes.push({ update: { name: base + '/meta/settings', fields: { json: enc(JSON.stringify({ profile: p.settings.profile, hidden: p.settings.hidden, notes: p.settings.notes, custom: p.settings.custom, measures: p.settings.measures, superset: p.settings.superset })), u: encInt(p.settings.u) } } }); }
     var chunks = [], i; for (i = 0; i < writes.length; i += 400) { chunks.push(writes.slice(i, i + 400)); }
     return chunks.reduce(function (pr, ch) {
       return pr.then(function () {
@@ -132,6 +132,8 @@
     run: run, schedule: schedule,
     status: function () { return status; },
     onStatus: function (f) { listeners.push(f); },
+    // a friend's recent sets (updated in the last 30 days), read only. Costs one cloud read per set returned, so only called on a button press.
+    peek: function (name) { return queryAll(name, 'logs', Date.now() - 30 * 864e5).then(function (r) { return r.rows.filter(function (l) { return !l.del; }); }); },
     // is this username allowed? resolves 'ok' | 'denied' | 'offline'
     check: function (name) {
       return api('/users/' + name + '/meta/settings').then(function (r) { return r.status === 403 ? 'denied' : (r.ok || r.status === 404) ? 'ok' : 'error'; })
