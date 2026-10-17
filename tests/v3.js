@@ -20,7 +20,7 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
 
   // 1. a planned day: arms night. Main event first, undercard below, tale of the tape, fight week.
   let p = await open(390, 844, FRI, '#/today', { logs: armsLogs, weights, profile });
-  ok((await p.locator('.ticker').textContent()).includes('Arms night') && (await p.locator('.ticker').textContent()).includes('6 bouts'), 'ticker names the muscle and counts the bouts');
+  ok((await p.locator('.ticker').textContent()).includes('Arms day') && (await p.locator('.ticker').textContent()).includes('6 bouts'), 'ticker names the muscle and counts the bouts');
   ok((await p.locator('.main-event .badge').textContent()).trim() === 'Main event' && (await p.locator('.main-event h1').textContent()).includes('Barbell curl'), 'the first exercise is the main event');
   ok((await p.locator('.main-event .vs').textContent()).includes('You') && (await p.locator('.main-event .facts').textContent()).includes('11 × 30'), 'main event shows the opponent: last time\'s best round');
   ok((await p.locator('.bout').count()) === 5, 'undercard lists the other five bouts');
@@ -94,7 +94,7 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
   // 9. custom week: a 3-day plan with two muscles on one day, and a 7-day plan
   const sat = new Date('2026-10-17T10:00:00');
   p = await open(390, 844, FRI, '#/today', { logs: [], weights, profile, schedule: { 5: ['chest', 'back'], 6: ['legs'] } });
-  ok((await p.locator('.ticker').textContent()).includes('Chest + Back night') && (await p.locator('.bout').count()) === 9, 'a day with two muscles shows both on the card (5 chest + 5 back, one is the main event)');
+  ok((await p.locator('.ticker').textContent()).includes('Chest + Back day') && (await p.locator('.bout').count()) === 9, 'a day with two muscles shows both on the card (5 chest + 5 back, one is the main event)');
   ok((await p.locator('.bout').nth(5).getAttribute('href')) === '#/m/back', 'rows from the second muscle open that muscle');
   ok((await p.locator('.fweek .wd').count()) === 2, 'fight week only lists the training days');
   await p.context().close();
@@ -123,6 +123,21 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
   ok(wk.length === 0 && (await p.locator('.fweek .wd').count()) === 7, 'seven fight-week tiles with several muscles fit on a 360 px phone: ' + (wk.join(',') || 'ok'));
   await p.goto(URL + '#/m/chest/5'); await p.waitForTimeout(200);
   ok((await p.locator('[data-act="wk-next"]').textContent()).includes('Next: Back'), 'last exercise of the first muscle offers the second muscle');
+  await p.context().close();
+
+  // 11. first-run polish
+  p = await open(390, 844, FRI, '#/', { logs: [], weights, profile });
+  ok((await p.locator('.d-stats').textContent()).includes('Your first workout is') && await p.locator('.d-stats a[href="#/today"]').count() === 1 && !(await p.locator('.d-stats').textContent()).includes('Share this week'), 'Home before the first workout shows a welcome instead of zeros');
+  await p.goto(URL + '#/m/arms'); await p.waitForTimeout(250);
+  ok((await p.locator('.first-hint').textContent()).includes('First time?') && (await p.locator('.first-hint').textContent()).includes('20 kg'), 'first set of a barbell move gets a beginner hint about the empty bar');
+  await p.locator('section.ex [data-act="log"]').click(); await p.waitForTimeout(150);
+  ok((await p.locator('#toast').textContent()).includes('Pick a weight first'), 'logging with 0 kg explains what to do');
+  await p.locator('section.ex [data-act="kgset"]').first().click(); await p.locator('section.ex [data-act="log"]').click(); await p.waitForTimeout(250);
+  const clash = await p.evaluate(() => { const r = document.getElementById('rest').getBoundingClientRect(), b = [...document.querySelectorAll('section.ex [data-act="log"], section.ex .kg-pick .chip')].map(e => e.getBoundingClientRect()); return !r.width ? 'timer hidden' : b.some(q => r.left < q.right && q.left < r.right && r.top < q.bottom && q.top < r.bottom); });
+  ok(clash === false, 'the rest timer does not cover the log button or the weight chips: ' + clash);
+  await p.context().close();
+  p = await open(390, 844, FRI, '#/today', { logs: [], weights, profile });
+  ok(!(await p.locator('.ticker').textContent()).includes('night') && (await p.locator('.ticker').textContent()).includes('day'), 'wording says day, not night');
   await p.context().close();
 
   console.log(fails.length ? '\nFAILURES:\n' + fails.join('\n') : '\nv3 UI tests OK'); await b.close(); process.exit(fails.length ? 1 : 0);

@@ -48,7 +48,7 @@
       if (a.topKg !== b.topKg) { parts.push('Heaviest set ' + (a.topKg > b.topKg ? 'up ' : 'down ') + kgText(Math.abs(a.topKg - b.topKg)) + ' kg (' + kgText(b.topKg) + ' to ' + kgText(a.topKg) + ')'); }
       else { parts.push('Same heaviest set (' + kgText(a.topKg) + ' kg)'); }
     }
-    if (a.n !== b.n) { parts.push(a.n + ' sets instead of ' + b.n); }
+    if (a.n !== b.n) { parts.push(a.n + (a.n === 1 ? ' set' : ' sets') + ' instead of ' + b.n); }
     if (b.volume > 0 && !bodyweight && Math.abs(work) >= 0.02) { parts.push('total ' + (work > 0 ? 'up ' : 'down ') + Math.round(Math.abs(work) * 100) + '%'); }
     if (bodyweight) { parts.push('Total reps ' + b.reps + ' to ' + a.reps); }
     else if (a.n === b.n && a.topKg === b.topKg && a.reps !== b.reps) { parts.push('reps ' + b.reps + ' to ' + a.reps); }

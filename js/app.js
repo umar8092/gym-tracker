@@ -219,13 +219,13 @@
       var ds = Store.addDays(ws, i), inf = Store.dayInfo(ds), pm = inf.planned;
       if (!inf.plannedAll.length && !inf.trained.length) { continue; }   // rest days are left out of the strip
       n++;
-      var label = inf.kind === 'done' ? 'Done' : inf.kind === 'missed' ? 'No show' : inf.kind === 'madeup' ? 'Made up' : inf.kind === 'today' ? 'Tonight' : inf.kind === 'upcoming' ? 'Planned' : '';
+      var label = inf.kind === 'done' ? 'Done' : inf.kind === 'missed' ? 'No show' : inf.kind === 'madeup' ? 'Made up' : inf.kind === 'today' ? 'Today' : inf.kind === 'upcoming' ? 'Planned' : '';
       var ms = inf.trained.length ? inf.trained : inf.plannedAll;
       tiles.push({ ds: ds, i: i, kind: inf.kind, ms: ms, label: label });
     }
     var short = tiles.length >= 6 || tiles.some(function (x) { return x.ms.length > 1; });   // many tiles or several muscles a day: three-letter names, one per line
     tiles.forEach(function (x) {
-      cells += '<a class="wd ' + x.kind + (short ? ' short' : '') + '" href="#/calendar/' + x.ds + '" aria-label="' + DAYS[(x.i + 1) % 7] + ': ' + mList(x.ms) + (x.label ? ', ' + x.label : '') + '"><span class="dn">' + DAYS[(x.i + 1) % 7].slice(0, 3) + '</span><span class="mn">' + x.ms.map(function (m) { return '<span>' + (short ? mShort(m) : mName(m)) + '</span>'; }).join('') + '</span><span class="st">' + ((short ? ({ Done: 'Done', 'No show': 'Miss', 'Made up': 'Made', Tonight: 'Now', Planned: '' })[x.label] : x.label) || '&nbsp;') + '</span></a>';
+      cells += '<a class="wd ' + x.kind + (short ? ' short' : '') + '" href="#/calendar/' + x.ds + '" aria-label="' + DAYS[(x.i + 1) % 7] + ': ' + mList(x.ms) + (x.label ? ', ' + x.label : '') + '"><span class="dn">' + DAYS[(x.i + 1) % 7].slice(0, 3) + '</span><span class="mn">' + x.ms.map(function (m) { return '<span>' + (short ? mShort(m) : mName(m)) + '</span>'; }).join('') + '</span><span class="st">' + ((short ? ({ Done: 'Done', 'No show': 'Miss', 'Made up': 'Made', Today: 'Now', Planned: '' })[x.label] : x.label) || '&nbsp;') + '</span></a>';
     });
     return '<div class="week" style="grid-template-columns:repeat(' + Math.max(n, 1) + ',minmax(0,1fr))" aria-label="This week">' + (cells || '<p class="muted">No training days in your plan. Set your week in the Plan tab.</p>') + '</div>';
   }
@@ -233,10 +233,10 @@
   /* ---------- the home screen: tonight's card ---------- */
   function viewToday() {
     var t = Store.today(), info = Store.dayInfo(t), plans = info.plannedAll, plan = plans[0] || null, all = Store.allLogs(), cur = Store.currentKg();
-    var main = '', under = '', ticker = '<b>' + longDate(t) + '</b>', howto = '<details class="howto"><summary>How a night works</summary><ol><li>Warm up with 1 or 2 light rounds of your first exercise.</li><li>Log each round right after you finish it: reps, then kg.</li><li>Rest 60 to 90 seconds. Pick a weight where your last rep looks like your first.</li><li>Open Form guide on any exercise to rotate the 3D figure and check your position.</li><li>Tap Finish workout to see how you did against last time.</li></ol></details>';
+    var main = '', under = '', ticker = '<b>' + longDate(t) + '</b>', howto = '<details class="howto"><summary>How a session works</summary><ol><li>Warm up with 1 or 2 light rounds of your first exercise.</li><li>Log each round right after you finish it: reps, then kg.</li><li>Rest 60 to 90 seconds. Pick a weight where your last rep looks like your first.</li><li>Open Form guide on any exercise to rotate the 3D figure and check your position.</li><li>Tap Finish workout to see how you did against last time.</li></ol></details>';
     if (info.kind === 'done') {
       var logs = Store.logsOn(t), names = info.trained.map(mName).join(' and '), rowsN = 0;
-      ticker += '<span>' + esc(names) + ' night</span><span>' + (plans.filter(function (m) { return info.trained.indexOf(m) < 0; }).length ? 'Halftime' : 'Fight over') + '</span>';
+      ticker += '<span>' + esc(names) + ' day</span><span>' + (plans.filter(function (m) { return info.trained.indexOf(m) < 0; }).length ? 'Halftime' : 'Fight over') + '</span>';
       var left = plans.filter(function (m) { return info.trained.indexOf(m) < 0; });
       main = '<div class="main-event noimg"><div class="me-l"><span class="badge red">' + (left.length ? 'Halftime' : 'Fight over') + '</span><h1>' + esc(names) + ' done</h1><p class="vs">' + logs.length + (logs.length === 1 ? ' round' : ' rounds') + ' · ' + Math.round(Store.volume(logs)).toLocaleString() + ' kg lifted · about ' + Stats.calories(logs, cur) + ' kcal (estimate)</p>' +
         '<p class="done-note">' + (left.length ? mList(left) + ' still to go today.' : 'Nice work.') + '</p><div class="today-actions">' + left.map(function (m) { return '<a class="btn primary" href="#/m/' + m + '">Start ' + mName(m).toLowerCase() + ' →</a>'; }).join('') + '<a class="' + (left.length ? 'link' : 'btn primary') + '" href="#/m/' + info.trained[0] + '">Add more rounds</a><a class="link" href="#/summary/' + info.trained[0] + '">See today\'s summary</a><a class="link" href="#/pick">Train another muscle</a></div></div></div>';
@@ -244,7 +244,7 @@
     } else if (plan) {
       var exs = [], owner = {}, sets = 0; plans.forEach(function (m) { visibleEx(m).forEach(function (e) { exs.push(e); owner[e.id] = m; }); }); exs.forEach(function (e) { sets += e.sets; });
       var pname = plans.map(mName).join(' + ');
-      ticker += '<span>' + pname + ' night</span><span>' + exs.length + (exs.length === 1 ? ' bout' : ' bouts') + '</span><span>About ' + (Math.round(sets * 2.5 / 5) * 5) + ' min</span><span>Rest 60–90 s between rounds</span>';
+      ticker += '<span>' + pname + ' day</span><span>' + exs.length + (exs.length === 1 ? ' bout' : ' bouts') + '</span><span>About ' + (Math.round(sets * 2.5 / 5) * 5) + ' min</span><span>Rest 60–90 s between rounds</span>';
       if (exs.length) {
         var ex0 = exs[0], last0 = Store.lastSession(ex0.id, t);
         main = '<div class="main-event"><div class="me-l"><span class="badge">Main event</span><h1>' + esc(ex0.name) + '</h1><p class="vs"><b>You</b><em>vs</em>' + (last0 ? 'You, ' + shortDate(last0.date).replace(/^\w+ /, '') : 'a first fight') + '</p>' +
@@ -259,7 +259,7 @@
       main = '<div class="main-event rest"><div class="me-l"><span class="badge">Rest day</span><h1>Rest day</h1><p class="vs">Recovery is part of the plan' + (nx ? '. Next card: ' + DAYS[Store.parse(nx.date).getDay()] + ', ' + mName(nx.muscle) : '') + '</p>' +
         '<div class="today-actions"><a class="btn primary" href="#/pick">Train anyway</a></div></div></div>';
     }
-    var h = '<div class="ticker">' + ticker + '</div><div class="today-grid"><section class="t-main" aria-label="Tonight\'s card"><div class="lab"><span>The card</span><span>Main event first, undercard below</span></div>' + main +
+    var h = '<div class="ticker">' + ticker + '</div><div class="today-grid"><section class="t-main" aria-label="Today\'s card"><div class="lab"><span>The card</span><span>Main event first, undercard below</span></div>' + main +
       (under ? '<ul class="bouts">' + under + '</ul>' : '') +
       '<div class="t-actions">' + (info.kind === 'done' ? '' : '<a class="link" href="#/pick">Choose a different muscle</a>') + howto + '</div></section>' +
       '<aside class="side"><section class="tape">' + tapeHTML(t) + '</section><section class="d-card fweek"><div class="lab"><span>Fight week</span><span></span></div>' + weekHTML(t) + '</section>' + catchUp(t) + deloadHTML(t) + quoteHTML() + '</aside></div>';
@@ -493,6 +493,11 @@
     return h;
   }
 
+  // a beginner's hint for the very first set of an exercise with no history
+  function firstHint(ex) {
+    var tip = ex.equip === 'Barbell' ? 'An empty barbell is 20 kg. Start with the bar or very light plates' : ex.equip === 'Dumbbells' ? 'Pick the lighter dumbbells (the weight of one)' : ex.equip === 'Machine' ? 'Put the pin near the top of the stack (lightest)' : 'Start with a light weight';
+    return tip + ', and choose a weight you can lift about 10 times with good form. You can add weight next session.';
+  }
   function loggerHTML(ex) {
     var today = Store.today(), sets = Store.setsFor(today, ex.id), last = Store.lastSession(ex.id, today), all = exLogs(ex.id);
     var dr = draft[ex.id] || (draft[ex.id] = initialDraft(ex, today));
@@ -500,6 +505,7 @@
     if (last) {
       h += '<p class="last">Last time (' + longDate(last.date).replace(/^\w+ /, '') + '): ' + last.sets.map(function (s) { return s.reps + ' × ' + kgStr(s.kg); }).join(', ') + ' kg</p>';
     }
+    if (!last && !sets.length && ex.equip !== 'Bodyweight' && !(dr.kg > 0)) { h += '<p class="first-hint"><b>First time?</b> ' + firstHint(ex) + '</p>'; }
     var tg = !sets.length && last ? Stats.target(ex.reps, Stats.summarize(last.date, last.sets)) : null;
     if (tg) { h += '<p class="target"><b>Target today:</b> ' + tg.reps + ' reps' + (tg.kg > 0 ? ' × ' + kgStr(tg.kg) + ' kg' : '') + '. ' + esc(tg.why) + '</p>'; }
     if (sets.length) {
@@ -620,7 +626,7 @@
     });
     var vol = Math.round(Store.volume(logs));
     var h = '<a class="crumb" href="#/m/' + muscle + '">Back to workout</a><h1>' + mName(muscle) + ' done</h1>' +
-      '<div class="stats"><div><b class="num">' + logs.length + '</b><span>Sets</span></div><div><b class="num">' + vol.toLocaleString() + '</b><span>Kg lifted</span></div><div><b class="num">' + (mins || '-') + '</b><span>' + (mins ? 'Minutes' : 'Minutes (needs 2+ sets)') + '</span></div><div><b class="num">' + Stats.calories(logs, Store.currentKg()) + '</b><span>Kcal (estimate)</span></div></div>';
+      '<div class="stats"><div><b class="num">' + logs.length + '</b><span>Sets</span></div><div><b class="num">' + vol.toLocaleString() + '</b><span>Kg lifted</span></div>' + (mins ? '<div><b class="num">' + mins + '</b><span>Minutes</span></div>' : '') + '<div><b class="num">' + Stats.calories(logs, Store.currentKg()) + '</b><span>Kcal (estimate)</span></div></div>';
     if (compared) { h += '<p class="lead" style="margin-top:18px"><b>' + (beat ? 'Won ' + beat + ' of ' + compared + ' bouts against last time.' : 'No wins against last time today. Rest and aim for it next session.') + '</b></p>'; }
     if (prs.length) { h += '<div class="sec"><h2>Personal records</h2><ul class="hist-list">' + prs.map(function (p) { return '<li><span class="hd">' + esc(p.name) + '</span><span class="hs num">' + p.set.reps + ' × ' + kgStr(p.set.kg) + ' kg</span><span class="prb">PR</span><span class="vtext">' + p.text + '</span></li>'; }).join('') + '</ul></div>'; }
     h += '<div class="sec"><h2>Exercises</h2><ul class="hist-list">' + rows + '</ul></div>';
@@ -705,16 +711,24 @@
   // a compact "tonight" card at the top of Home that opens the Today page
   function tonightStrip(t) {
     var info = Store.dayInfo(t), plans = info.plannedAll;
-    if (info.kind === 'done') { return '<a class="tonight done" href="#/today"><span class="badge red">' + (plans.filter(function (m) { return info.trained.indexOf(m) < 0; }).length ? 'Halftime' : 'Fight over') + '</span><b>' + esc(info.trained.map(mName).join(' + ')) + ' done today</b><span class="go">See tonight\'s card ›</span></a>'; }
+    if (info.kind === 'done') { return '<a class="tonight done" href="#/today"><span class="badge red">' + (plans.filter(function (m) { return info.trained.indexOf(m) < 0; }).length ? 'Halftime' : 'Fight over') + '</span><b>' + esc(info.trained.map(mName).join(' + ')) + ' done today</b><span class="go">See today\'s card ›</span></a>'; }
     if (!plans.length) { var nx = nextCard(t); return '<a class="tonight" href="#/today"><span class="badge">Rest day</span><b>' + (nx ? 'Next: ' + DAYS[Store.parse(nx.date).getDay()] + ', ' + mName(nx.muscle) : 'Nothing planned') + '</b><span class="go">Open Today ›</span></a>'; }
-    return '<a class="tonight" href="#/today"><span class="badge">Tonight</span><b>' + plans.map(mName).join(' + ') + ' night · about ' + sessionMinutes(plans) + ' min</b><span class="go">Enter the ring ›</span></a>';
+    return '<a class="tonight" href="#/today"><span class="badge">Today</span><b>' + plans.map(mName).join(' + ') + ' day · about ' + sessionMinutes(plans) + ' min</b><span class="go">Enter the ring ›</span></a>';
+  }
+
+  // before the first workout there are no numbers to show: say what to do instead
+  function welcomeHTML(t) {
+    var info = Store.dayInfo(t), nx = info.plannedAll.length ? { date: t, muscle: info.plannedAll[0] } : nextCard(t);
+    var when = nx ? (nx.date === t ? 'today: ' + mList(info.plannedAll) : DAYS[Store.parse(nx.date).getDay()] + ': ' + mName(nx.muscle)) : '';
+    return '<div class="lab"><span>Welcome</span><span></span></div><h3>Your first workout is ' + (when || 'whenever you are ready') + '</h3><p class="muted" style="margin-top:8px;max-width:54ch">Your stats, streak and charts fill in as you log. Open Today, start with the first exercise and log each round as you go.</p><div class="today-actions"><a class="btn primary" href="#/today">Go to Today</a></div>';
   }
 
   /* =========================================================  PROGRESS  */
   function viewProgress() {
     var t = Store.today(), p = Store.profile(), ws = Store.weights();
     var P = dashParts(t);
-    var h = '<h1>Home</h1>' + tonightStrip(t) + '<div class="dash over"><section class="d-card d-stats">' + P.stats + '</section><section class="tape">' + P.tape + '</section><section class="d-card d-week">' + P.week + '</section><section class="d-card d-last">' + P.last + '</section><section class="d-card d-bal">' + P.bal + '</section></div>' + howSection() + recordsSection() + measuresSection() + friendsSection() + '<div class="sec"><h2>Body weight</h2><p class="sub">Goal ' + kgStr(p.goalKg) + ' kg. Weigh in at the same time of day for a clear trend.</p>';
+    var first = !Store.allLogs().length;
+    var h = '<h1>Home</h1>' + tonightStrip(t) + '<div class="dash over"><section class="d-card d-stats">' + (first ? welcomeHTML(t) : P.stats) + '</section><section class="tape">' + P.tape + '</section><section class="d-card d-week">' + P.week + '</section><section class="d-card d-last">' + P.last + '</section><section class="d-card d-bal">' + P.bal + '</section></div>' + howSection() + recordsSection() + measuresSection() + friendsSection() + '<div class="sec"><h2>Body weight</h2><p class="sub">Goal ' + kgStr(p.goalKg) + ' kg. Weigh in at the same time of day for a clear trend.</p>';
     if (ws.length >= 2) {
       h += Charts.line(ws.map(function (w) { return { x: Store.parse(w.d).getTime() / 864e5, y: w.kg, label: longDate(w.d) + ': ' + kgStr(w.kg) + ' kg' }; }),
         { goal: p.goalKg, unit: ' kg', aria: 'Body weight over time, latest ' + kgStr(ws[ws.length - 1].kg) + ' kilograms, goal ' + kgStr(p.goalKg),
@@ -821,7 +835,7 @@
       try { [0, 0.28].forEach(function (d) { var o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = 880; g.gain.value = 0.2; o.connect(g); g.connect(ctx.destination); o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + 0.16); }); } catch (e) {}
       if (navigator.vibrate) { navigator.vibrate([250, 120, 250]); }
     }
-    function hide() { clearInterval(tick); el.hidden = true; el.classList.remove('over'); }
+    function hide() { clearInterval(tick); el.hidden = true; el.classList.remove('over'); document.body.classList.remove('resting'); }
     function paint() {
       var left = Math.ceil((end - Date.now()) / 1000);
       if (left > 0) { txt.textContent = 'Rest ' + Math.floor(left / 60) + ':' + (left % 60 < 10 ? '0' : '') + (left % 60); return; }
@@ -831,7 +845,7 @@
     function start() {
       var c = cfg(); if (!c.on) { return; }
       try { ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); if (ctx.resume) { ctx.resume(); } } catch (e) {}
-      clearTimeout(hideT); end = Date.now() + c.sec * 1000; fired = false; el.hidden = false; el.classList.remove('over');
+      clearTimeout(hideT); end = Date.now() + c.sec * 1000; fired = false; el.hidden = false; el.classList.remove('over'); document.body.classList.add('resting');
       clearInterval(tick); tick = setInterval(paint, 250); paint();
     }
     el.addEventListener('click', function (e) {
@@ -998,7 +1012,7 @@
         var wasLast = Store.lastSession(exId, Store.today());
         var reps = num(dr.reps), kg = num(dr.kg), ex = Data.byId[exId];
         if (!(reps >= 1) || Math.floor(reps) !== reps) { toast('Enter the reps first'); break; }
-        if (isNaN(kg) || kg < 0 || (kg === 0 && ex.equip !== 'Bodyweight')) { toast('Enter the kg first'); break; }
+        if (isNaN(kg) || kg < 0 || (kg === 0 && ex.equip !== 'Bodyweight')) { toast(ex.equip === 'Barbell' ? 'Pick a weight first. An empty bar is 20 kg.' : 'Pick a weight first. Start light.'); break; }
         Store.addSet(Store.today(), ex.muscle, exId, reps, kg);
         var doneSets = Store.setsFor(Store.today(), exId), mine = doneSets[doneSets.length - 1], pr = Stats.prFor(mine, exLogs(exId));
         toast('Round ' + doneSets.length + ' logged' + (pr ? '. ' + Stats.PR_TEXT[pr] + '!' : ''));
