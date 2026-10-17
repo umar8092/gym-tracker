@@ -580,3 +580,13 @@ details.plan-day { margin-top: 0; margin-bottom: 10px; box-shadow: none; padding
   .wk-main .mmap { max-width: 260px; }
 }
 @media (min-width: 1560px) { .wk-main .guide-body { grid-template-columns: minmax(0, 1.3fr) minmax(240px, 1fr); } }
+
+/* calendar: a sensible size, with the selected day beside it on a laptop */
+.cal-wrap { display: block; }
+.cal-wrap .day-detail { margin-top: 20px; }
+@media (min-width: 1000px) {
+  main[data-r="calendar"] { max-width: 1120px; }
+  .cal-wrap { display: grid; grid-template-columns: minmax(0, 620px) minmax(280px, 1fr); gap: 32px; align-items: start; }
+  .cal-wrap .day-detail { margin-top: 62px; position: sticky; top: 90px; }
+  .cd { aspect-ratio: 1.15 / 1; font-size: 22px; }
+}

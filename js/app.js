@@ -657,7 +657,7 @@
     if (!calState) { var td = Store.parse(t); calState = { y: td.getFullYear(), m: td.getMonth(), sel: t }; }
     if (arg && /^\d{4}-\d{2}-\d{2}$/.test(arg)) { var pd = Store.parse(arg); calState = { y: pd.getFullYear(), m: pd.getMonth(), sel: arg }; }
     var y = calState.y, mo = calState.m, first = new Date(y, mo, 1), lead = (first.getDay() + 6) % 7, n = new Date(y, mo + 1, 0).getDate();
-    var h = '<h1>Calendar</h1><div class="cal-head"><h2>' + MONTHS[mo] + ' ' + y + '</h2><div class="cal-nav"><button type="button" data-act="cal-prev" aria-label="Previous month">‹</button><button type="button" data-act="cal-next" aria-label="Next month">›</button></div></div>';
+    var h = '<h1>Calendar</h1><div class="cal-wrap"><div class="cal-l"><div class="cal-head"><h2>' + MONTHS[mo] + ' ' + y + '</h2><div class="cal-nav"><button type="button" data-act="cal-prev" aria-label="Previous month">‹</button><button type="button" data-act="cal-next" aria-label="Next month">›</button></div></div>';
     h += '<div class="cal" role="grid">' + ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(function (d) { return '<div class="dow">' + d + '</div>'; }).join('');
     for (var i = 0; i < lead; i++) { h += '<div class="cd blank"></div>'; }
     var doneN = 0, planN = 0;
@@ -670,7 +670,7 @@
     }
     h += '</div><div class="cal-legend"><span><i class="lg done"></i>Trained</span><span><i class="lg missed"></i>No show</span><span><i class="lg madeup"></i>Made up later</span><span><i class="lg"></i>Planned or rest</span></div>';
     h += '<p class="muted" style="margin-top:10px">' + doneN + ' of ' + planN + ' planned days done this month so far.</p>';
-    h += dayDetail(calState.sel);
+    h += '</div>' + dayDetail(calState.sel) + '</div>';
     return h;
   }
   function dayDetail(ds) {
