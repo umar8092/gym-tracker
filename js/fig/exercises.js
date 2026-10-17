@@ -2,7 +2,7 @@
    pose() returns { grips: [Vector3...] } = the points whose path is drawn as the dashed line.
    Coordinates: metres, +Y up, +Z in front of the figure, +X the figure's left. */
 import * as THREE from 'three';
-import { makeDumbbell, makeBarbell, makeBench } from './props.js';
+import { makeDumbbell, makeBarbell, makeBench, BENCH_TOP } from './props.js';
 import { fromKeys, armKeysPose } from './poses.js';
 
 const V3 = THREE.Vector3;
@@ -103,7 +103,7 @@ export function pressExercise(o) {
       // sit the body on the pad: measure the lowest back/glute point, then drop to touch it
       rig.reset(); lieOnBench(rig, pelvisAt(0), pitch); legsOnFloor(rig); ctx.root.updateMatrixWorld(true);
       const low = lowestPoint(ctx.body, v => Math.abs(v.x) < 0.2 && v.z < 0.3 && v.z > -0.6 && v.y < 0.8);
-      st.dy = 0.43 - low + 0.004;
+      st.dy = BENCH_TOP - low + 0.002;
       rig.reset(); lieOnBench(rig, pelvisAt(st.dy), pitch); legsOnFloor(rig); ctx.root.updateMatrixWorld(true);
       // where the weight touches the chest: bz below the shoulder line along the torso, surface found on the mesh
       const S0 = rig.wp('upperarm_l'), C = new V3(0, S0.y, S0.z).addScaledVector(u, -(o.bottomZ || 0.13));
@@ -182,7 +182,7 @@ export const EXERCISES = {
   'dumbbell-fly': flyExercise(),
   'push-up': pushUp()
 };
-const HELPERS = { placeInHand, gripFrame, wristFor, lieOnBench, lowestPoint, surfaceAlong, legsOnFloor, Rx, Q, mir, lerp3, pressExercise };
+const HELPERS = { BENCH_TOP, placeInHand, gripFrame, wristFor, lieOnBench, lowestPoint, surfaceAlong, legsOnFloor, Rx, Q, mir, lerp3, pressExercise };
 Object.assign(EXERCISES, makeMore(HELPERS), makeMachines(HELPERS));
 export function exerciseFor(ex) {
   if (EXERCISES[ex.id]) { return EXERCISES[ex.id]; }

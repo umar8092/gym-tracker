@@ -1,0 +1,41 @@
+<!doctype html><meta charset="utf-8">
+<script src="../js/data.js"></script>
+<script type="importmap">{"imports":{"three":"../vendor/three.module.min.js","three/addons/":"../vendor/addons/"}}</script>
+<script type="module">
+// Penetration audit: for every exercise and a few rep positions, finds body vertices that sit inside equipment meshes.
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import { Rig } from '../js/fig/rig.js';
+import { makeFloor } from '../js/fig/props.js';
+import { exerciseFor } from '../js/fig/exercises.js';
+const q = new URLSearchParams(location.search), only = q.get('only') ? q.get('only').split(',') : null, TS = (q.get('ts') || '0,0.5,1').split(',').map(Number), EPS = +(q.get('eps') || 0.006);
+const gltf = await new GLTFLoader().loadAsync('../models/Superhero_Male_FullBody.gltf');
+const res = [];
+for (const ex of Data.EX) {
+  if (only && !only.includes(ex.id)) continue; const def = exerciseFor(ex); if (!def) continue;
+  const scene = new THREE.Scene(); const root = SkeletonUtils.clone(gltf.scene); let body; root.traverse(o => { if (o.isSkinnedMesh && o.name.includes('SuperHero')) body = o; });
+  scene.add(root); const fl = makeFloor(); scene.add(fl);
+  const rig = new Rig(root), ctx = { rig, scene, root, body }, before = new Set(scene.children), props = def.setup(ctx); props.ctx = ctx;
+  const meshes = []; scene.children.forEach(c => { if (!before.has(c)) c.traverse(o => { if (o.isMesh) meshes.push(o); }); });
+  for (const t of TS) {
+    def.pose(props, t); root.updateMatrixWorld(true); scene.updateMatrixWorld(true); body.skeleton.update();
+    const verts = []; const v = new THREE.Vector3(); for (let i = 0; i < body.geometry.attributes.position.count; i++) { body.getVertexPosition(i, v); v.applyMatrix4(body.matrixWorld); verts.push(v.clone()); }
+    const inv = new THREE.Matrix4(), l = new THREE.Vector3();
+    meshes.forEach((m, mi) => {
+      const g = m.geometry; g.computeBoundingBox(); const bb = g.boundingBox, size = bb.getSize(new THREE.Vector3());
+      const P = g.parameters || {}; if (g.type === 'CylinderGeometry' && P.radiusTop < 0.03) return;   // grips and rods are held on purpose
+      if (g.type === 'TorusGeometry') return; if (Math.max(size.x, size.y, size.z) < 0.03) return;
+      inv.copy(m.matrixWorld).invert(); let n = 0, depth = 0, where = null;
+      for (const p of verts) {
+        l.copy(p).applyMatrix4(inv); let d;
+        if (g.type === 'CylinderGeometry') { const r = Math.hypot(l.x, l.z), dr = P.radiusTop - r, dh = P.height / 2 - Math.abs(l.y); d = Math.min(dr, dh); }
+        else { d = Math.min(bb.max.x - l.x, l.x - bb.min.x, bb.max.y - l.y, l.y - bb.min.y, bb.max.z - l.z, l.z - bb.min.z); }
+        if (d > EPS) { n++; if (d > depth) { depth = d; where = p.toArray().map(a => +a.toFixed(2)); } }
+      }
+      if (n) { const c = new THREE.Vector3().setFromMatrixPosition(m.matrixWorld); res.push({ id: ex.id, t, mesh: g.type.replace('Geometry', '') + ' ' + size.toArray().map(a => +a.toFixed(2)).join('x'), at: c.toArray().map(a => +a.toFixed(2)), verts: n, depthCm: +(depth * 100).toFixed(1), whereBody: where }); }
+    });
+  }
+}
+console.log('AUDIT ' + JSON.stringify(res)); window.__done = true;
+</script>

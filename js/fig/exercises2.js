@@ -1,6 +1,6 @@
 /* Free-weight exercises for back, legs and arms. makeMore(H) receives the shared helpers from exercises.js (avoids a circular import). */
 import * as THREE from 'three';
-import { makeDumbbell, makeBarbell, makeBench, MATS } from './props.js';
+import { makeDumbbell, makeBarbell, makeBench, MATS, BENCH_TOP } from './props.js';
 import { keyDir, vslerp } from './poses.js';
 
 const V3 = THREE.Vector3, DEG = Math.PI / 180;
@@ -115,7 +115,7 @@ export function makeMore(H) {
       setup(ctx) { const db = [makeDumbbell(), makeDumbbell()]; db.forEach(d => ctx.scene.add(d)); return { ctx, db }; },
       pose(st, t) {
         const rig = st.ctx.rig; rig.reset(); pose(rig, t);
-        const fr = {}; for (const s of ['l', 'r']) { const m = s === 'l' ? 1 : -1; fr[s] = rig.armFK(s, new V3(0.03 * m, -1, 0.02), new V3(0, -1, 0.05), new V3(-m, 0, 0), 1); }
+        const fr = {}; for (const s of ['l', 'r']) { const m = s === 'l' ? 1 : -1; fr[s] = rig.armFK(s, new V3(0.075 * m, -1, 0.02), new V3(0.02 * m, -1, 0.05), new V3(-m, 0, 0), 1); }
         placeInHand(rig, st.db[0], 'l', fr.l); placeInHand(rig, st.db[1], 'r', fr.r);
         return { grips: [st.db[0].position.clone().setX(0), st.db[1].position.clone().setX(0)].slice(0, 1) };
       }
@@ -124,10 +124,10 @@ export function makeMore(H) {
 
   // Standing calf raise with dumbbells, balls of the feet on a step. t = 0 heels low (stretch), t = 1 up on the toes.
   out['dumbbell-calf-raise'] = (() => {
-    const stepH = 0.1, ballZ = 0.02;
+    const stepH = 0.1, ballZ = 0.02, ballY = stepH + 0.03;
     const pose = (rig, t) => {
       const psi = (24 + 48 * t) * DEG, fl = 0.16;                                     // ankle->ball pitch below horizontal
-      const ankle = new V3(0, stepH + fl * Math.sin(psi), ballZ - fl * Math.cos(psi));
+      const ankle = new V3(0, ballY + fl * Math.sin(psi), ballZ - fl * Math.cos(psi));
       rig.setWP('pelvis', rig.rest.pelvis.p.clone().add(new V3(0, ankle.y - rig.rest.foot_l.p.y, ankle.z - rig.rest.foot_l.p.z)));
       rig.setWQ('pelvis', rig.rest.pelvis.q.clone());
       for (const s of ['l', 'r']) { const sg = s === 'l' ? 1 : -1; rig.legIK(s, ankle.clone().setX(sg * 0.12), new V3(0, 0, 1), new V3(0, -Math.sin(psi), Math.cos(psi)), new V3(0, Math.cos(psi), Math.sin(psi))); }
@@ -141,7 +141,7 @@ export function makeMore(H) {
       },
       pose(st, t) {
         const rig = st.ctx.rig; rig.reset(); pose(rig, t);
-        const fr = {}; for (const s of ['l', 'r']) { const m = s === 'l' ? 1 : -1; fr[s] = rig.armFK(s, new V3(0.03 * m, -1, 0.02), new V3(0, -1, 0.05), new V3(-m, 0, 0), 1); }
+        const fr = {}; for (const s of ['l', 'r']) { const m = s === 'l' ? 1 : -1; fr[s] = rig.armFK(s, new V3(0.075 * m, -1, 0.02), new V3(0.02 * m, -1, 0.05), new V3(-m, 0, 0), 1); }
         placeInHand(rig, st.db[0], 'l', fr.l); placeInHand(rig, st.db[1], 'r', fr.r);
         return { grips: [rig.wp('foot_l').clone().add(new V3(0, 0.0, 0.0))].slice(0, 0).concat([st.db[0].position.clone()]) };
       }
@@ -186,10 +186,10 @@ export function makeMore(H) {
       },
       pose(st, t) {
         const rig = st.ctx.rig; rig.reset();
-        rig.setWP('pelvis', new V3(0.1, 0.9, -0.02)); rig.setWQ('pelvis', Rx(hinge).multiply(rig.rest.pelvis.q.clone()));
+        rig.setWP('pelvis', new V3(0.1, 0.935, -0.02)); rig.setWQ('pelvis', Rx(hinge).multiply(rig.rest.pelvis.q.clone()));
         rig.aim('thigh_l', new V3(0.1, -1, 0.12)); rig.aim('calf_l', new V3(0, 0.03, -1)); rig.relaxFoot('l', 38); rig.legIK('r', new V3(-0.2, rig.rest.foot_r.p.y, -0.12), new V3(-0.2, 0.2, 1)); rig.flatFoot('r', 10);
         neckLevel(rig, 45);
-        const a = rig.armIK('l', new V3(bx, 0.5, 0.36), new V3(0.4, 0.2, -0.3), new V3(0, 0, 1), new V3(0, -1, 0), 0.3);
+        const a = rig.armIK('l', new V3(bx, BENCH_TOP + 0.095, 0.36), new V3(0.4, 0.2, -0.3), new V3(0, 0, 1), new V3(0, -1, 0), 0.3);
         const S = rig.wp('upperarm_r'), reach = rig.len.arm_r[0] + rig.len.arm_r[1];
         const hang = new V3(S.x - 0.02, S.y - reach * 0.97, S.z), pull = new V3(S.x - 0.04, S.y - 0.2, S.z - 0.28);
         const G = lerp3(hang, pull, t), F = new V3(0, -1, 0.1), N = new V3(1, 0, 0);
@@ -205,7 +205,7 @@ export function makeMore(H) {
   function curl(o) {
     const beta = [0, 80, 138].map(d => d * DEG), keys = { U: [], F: [], N: [] };
     beta.forEach((b, i) => {
-      keys.U.push(U3(0.04, -1, i === 2 ? 0.22 : 0.02));
+      keys.U.push(U3(0.075, -1, i === 2 ? 0.22 : 0.02));
       keys.F.push(U3(0, -Math.cos(b), Math.sin(b)));
       keys.N.push(o.hammer ? U3(-1, 0, 0) : U3(0, Math.sin(b), Math.cos(b)));
     });

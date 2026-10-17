@@ -1,7 +1,7 @@
 /* Gym machines (3D props + poses): chest press, lat pulldown, seated cable row, leg press, leg curl, cable pushdown.
    makeMachines(H) receives the shared helpers from exercises.js. Metres, +Y up, user faces +Z. */
 import * as THREE from 'three';
-import { MATS, makeBench } from './props.js';
+import { MATS, makeBench, BENCH_TOP } from './props.js';
 import { keyDir } from './poses.js';
 
 const V3 = THREE.Vector3, DEG = Math.PI / 180;
@@ -46,7 +46,7 @@ export function makeMachines(H) {
       setup(ctx) {
         const g = new THREE.Group(); ctx.scene.add(g);
         for (const sx of [-1, 1]) { bx(0.07, 0.06, 1.7, MATS.frame, sx * 0.42, 0.03, -0.15, g); bx(0.06, 1.55, 0.08, MATS.frame, sx * 0.36, 0.8, -0.42, g); }
-        bx(0.9, 0.06, 0.1, MATS.frame, 0, 0.03, 0.62, g); bx(0.9, 0.06, 0.1, MATS.frame, 0, 0.03, -0.9, g);
+        bx(0.9, 0.06, 0.1, MATS.frame, 0, 0.03, 0.9, g); bx(0.9, 0.06, 0.1, MATS.frame, 0, 0.03, -0.9, g);
         pad(0.4, 0.09, 0.42, 0, seatTop - 0.045, 0.02, g); bx(0.1, 0.4, 0.1, MATS.frame, 0, 0.27, 0.0, g);
         const back = pad(0.36, 0.62, 0.09, 0, 0.88, -0.27, g); back.rotation.x = -8 * DEG;
         bx(0.5, 0.04, 0.04, MATS.frame, 0, 1.17, -0.38, g);
@@ -105,15 +105,17 @@ export function makeMachines(H) {
 
   /* ---------------- seated cable row ---------------- */
   out['seated-cable-row'] = (() => {
-    const seatTop = 0.46, lowP = new V3(0, 0.32, 1.25), N = new V3(-1, 0, 0), plateZ = 0.7;
+    const seatTop = 0.46, lowP = new V3(0, 0.32, 1.25), N = new V3(-1, 0, 0), plateZ = 0.7;   // feet rest on the plate; ankles at plateZ - 0.08
     return {
       camera: cameraFor({ ty: 0.85, dist: 4.6, yaw: 75, pitch: 8 }),
       setup(ctx) {
         const g = new THREE.Group(); ctx.scene.add(g);
         bx(0.12, 0.08, 2.2, MATS.frame, 0, 0.04, 0.35, g); bx(0.5, 0.06, 0.1, MATS.frame, 0, 0.03, -0.55, g);
         pad(0.34, 0.1, 0.38, 0, seatTop - 0.05, -0.18, g); bx(0.08, 0.38, 0.08, MATS.frame, 0, 0.25, -0.18, g);
-        const fp = bx(0.5, 0.5, 0.04, MATS.frame, 0, 0.36, plateZ, g); fp.rotation.x = -22 * DEG;
-        for (const sx of [-1, 1]) { bx(0.06, 0.4, 0.06, MATS.frame, sx * 0.2, 0.24, plateZ - 0.1, g); }
+        const into = U3(0, -0.375, 0.927), pup = U3(0, 0.927, 0.375), A = new V3(0, 0.46, plateZ - 0.08);
+        const fp = bx(0.5, 0.5, 0.04, MATS.frame, 0, 0, 0, g); fp.position.copy(A).addScaledVector(into, 0.105).addScaledVector(pup, 0.1);
+        fp.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new V3(1, 0, 0), pup, into.clone().negate()));
+        for (const sx of [-1, 1]) { bx(0.06, 0.45, 0.06, MATS.frame, sx * 0.2, 0.2, plateZ + 0.12, g); }
         bx(0.3, 0.9, 0.16, MATS.frame, 0, 0.45, 1.3, g);
         const stack = weightStack(0, 1.55, 1.2); g.add(stack); pulleyWheel(0, lowP.y, lowP.z, g);
         const handle = new THREE.Group(); for (const sx of [-1, 1]) { const h = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.12, 14), MATS.steel); h.position.set(sx * 0.07, 0, 0); h.rotation.x = Math.PI / 2; handle.add(h); }
@@ -124,7 +126,7 @@ export function makeMachines(H) {
       pose(st, t) {
         const rig = st.ctx.rig; rig.reset();
         rig.setWP('pelvis', new V3(0, seatTop + 0.1, -0.2 + 0.05 * (1 - t))); rig.setWQ('pelvis', Rx(14 * (1 - t) - 3 * t).multiply(rig.rest.pelvis.q.clone()));
-        for (const s of ['l', 'r']) { const sg = s === 'l' ? 1 : -1; rig.legIK(s, new V3(sg * 0.15, 0.44, plateZ - 0.02), new V3(sg * 0.1, 1, 0.1)); rig.footFrame(s, new V3(0, 0.95, -0.3), new V3(0, 0.3, 0.95)); }
+        for (const s of ['l', 'r']) { const sg = s === 'l' ? 1 : -1; rig.legIK(s, new V3(sg * 0.15, 0.46, plateZ - 0.08), new V3(sg * 0.1, 1, 0.1)); rig.footFrame(s, new V3(0, 0.67, 0.745), new V3(0, 0.745, -0.67)); }
         neckLevel(rig, 2);
         const S = rig.wp('upperarm_l'), reach = rig.len.arm_l[0] + rig.len.arm_l[1];
         const G = lerp3(new V3(0.07, S.y - 0.3, S.z + reach * 0.93 + 0.06), new V3(0.07, S.y - 0.31, S.z + 0.19), t);
@@ -144,15 +146,15 @@ export function makeMachines(H) {
       camera: cameraFor({ ty: 0.85, dist: 5.0, yaw: 80, pitch: 8 }),
       setup(ctx) {
         const g = new THREE.Group(); ctx.scene.add(g);
-        for (const sx of [-1, 1]) { const r = between(new V3(sx * 0.32, 0.1, -0.5), new V3(sx * 0.32, 1.45, 0.85), 0.04, MATS.frame, g); bx(0.07, 0.06, 1.7, MATS.frame, sx * 0.42, 0.03, 0.1, g); }
+        for (const sx of [-1, 1]) { const r = between(new V3(sx * 0.4, 0.1, -0.5), new V3(sx * 0.4, 1.45, 0.85), 0.03, MATS.frame, g); bx(0.07, 0.06, 1.7, MATS.frame, sx * 0.42, 0.03, 0.1, g); }
         bx(0.9, 0.06, 0.08, MATS.frame, 0, 0.03, 0.9, g); bx(0.9, 0.06, 0.08, MATS.frame, 0, 0.03, -0.7, g);
         const seat = pad(0.42, 0.1, 0.4, 0, Hp.y - 0.12, Hp.z + 0.02, g);
         const back = pad(0.42, 0.7, 0.09, 0, 0, 0, g); back.position.copy(Hp).addScaledVector(pu, 0.36).addScaledVector(U3(0, 1, 1), -0.17).add(new V3(0, 0, 0)); back.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new V3(1, 0, 0), pu, U3(0, 1, 1)));
         for (const sx of [-1, 1]) { bx(0.04, 0.04, 0.3, MATS.frame, sx * 0.3, Hp.y + 0.12, Hp.z + 0.18, g); }
         const sled = new THREE.Group(); ctx.scene.add(sled);
         const plate = bx(0.7, 0.56, 0.05, MATS.frame, 0, 0, 0, sled); plate.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new V3(1, 0, 0), pu, rail));
-        for (const sx of [-1, 1]) { const hn = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 12), MATS.steel); hn.rotation.z = Math.PI / 2; hn.position.set(sx * 0.62, 0, 0); sled.add(hn); for (let k = 0; k < 3; k++) { const d = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.045, 32), MATS.plate); d.rotation.z = Math.PI / 2; d.position.set(sx * (0.5 + 0.05 * k), 0, 0); d.castShadow = true; sled.add(d); } }
-        for (const sx of [-1, 1]) { const arm = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.5), MATS.frame); arm.position.set(sx * 0.34, 0, 0); arm.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new V3(1, 0, 0), pu, rail)); sled.add(arm); }
+        for (const sx of [-1, 1]) { const hn = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 12), MATS.steel); hn.rotation.z = Math.PI / 2; hn.position.set(sx * 0.62, -0.34, 0); sled.add(hn); for (let k = 0; k < 3; k++) { const d = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.045, 32), MATS.plate); d.rotation.z = Math.PI / 2; d.position.set(sx * (0.5 + 0.05 * k), -0.34, 0); d.castShadow = true; sled.add(d); } }
+        for (const sx of [-1, 1]) { const arm = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.5), MATS.frame); arm.position.set(sx * 0.4, 0, 0); arm.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new V3(1, 0, 0), pu, rail)); sled.add(arm); }
         return { ctx, g, sled };
       },
       pose(st, t) {
@@ -166,7 +168,7 @@ export function makeMachines(H) {
           const sg = s === 'l' ? 1 : -1, hip = rig.wp('thigh_' + s), A = hip.clone().addScaledVector(rail, d); A.x = sg * 0.17;
           rig.legIK(s, A, new V3(sg * 0.35, 0.3, -0.3).add(new V3(0, 0.7, 0)), footDir, footUp); ankleC = A;
         }
-        const C = new V3(0, ankleC.y, ankleC.z).addScaledVector(rail, 0.1).addScaledVector(pu, 0.13); st.sled.position.copy(C);
+        const C = new V3(0, ankleC.y, ankleC.z).addScaledVector(rail, 0.125).addScaledVector(pu, 0.13); st.sled.position.copy(C);
         return { grips: [new V3(0.17, ankleC.y, ankleC.z)] };
       }
     };
@@ -174,24 +176,26 @@ export function makeMachines(H) {
 
   /* ---------------- leg curl (prone) ---------------- */
   out['leg-curl'] = (() => {
-    const padTop = 0.5, bodyY = padTop + 0.1;
-    const prone = (rig) => {
+    const padTop = BENCH_TOP, bodyY = padTop + 0.12;
+    const prone = (rig, dy = 0) => {
       const ex = new V3(-1, 0, 0), ey = new V3(0, 0, -1), ez = new V3(0, -1, 0);
-      rig.setWP('pelvis', new V3(0, bodyY, 0.05)); rig.setWQ('pelvis', new Q().setFromRotationMatrix(new THREE.Matrix4().makeBasis(ex, ey, ez)).multiply(rig.rest.pelvis.q.clone()));
+      rig.setWP('pelvis', new V3(0, bodyY + dy, 0.05)); rig.setWQ('pelvis', new Q().setFromRotationMatrix(new THREE.Matrix4().makeBasis(ex, ey, ez)).multiply(rig.rest.pelvis.q.clone()));
     };
     return {
       camera: cameraFor({ ty: 0.6, dist: 4.0, yaw: 75, pitch: 14 }),
       setup(ctx) {
         const g = new THREE.Group(); ctx.scene.add(g);
+        const rig0 = ctx.rig; rig0.reset(); prone(rig0, 0); ctx.root.updateMatrixWorld(true);
+        const low = H.lowestPoint(ctx.body, v => Math.abs(v.x) < 0.2 && v.z < 0.45 && v.z > -0.5 && v.y < 0.9), dyBody = BENCH_TOP - low + 0.002;
         pad(0.34, 0.09, 1.15, 0, padTop - 0.045, -0.22, g); pad(0.3, 0.09, 0.3, 0, padTop - 0.12, 0.5, g).rotation.x = 16 * DEG;
         for (const sx of [-1, 1]) { bx(0.06, 0.45, 0.06, MATS.frame, sx * 0.14, 0.23, -0.6, g); bx(0.06, 0.45, 0.06, MATS.frame, sx * 0.14, 0.23, 0.2, g); bx(0.06, 0.06, 1.4, MATS.frame, sx * 0.34, 0.03, -0.1, g); }
         const stack = weightStack(0, 1.35, 1.2); g.add(stack);
         const roller = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.34, 18), MATS.padBlack); roller.rotation.z = Math.PI / 2; ctx.scene.add(roller);
         const arm = between(new V3(), new V3(0, 1, 0), 0.025, MATS.darkSteel, ctx.scene);
-        return { ctx, g, stack, roller, arm };
+        return { ctx, g, stack, roller, arm, dyBody };
       },
       pose(st, t) {
-        const rig = st.ctx.rig; rig.reset(); prone(rig);
+        const rig = st.ctx.rig; rig.reset(); prone(rig, st.dyBody);
         const kappa = (4 + 100 * t) * DEG;
         for (const s of ['l', 'r']) {
           const sg = s === 'l' ? -1 : 1, hip = rig.wp('thigh_' + s), knee = hip.clone().add(new V3(0, -0.01, 0.43)), A = knee.clone().add(new V3(0, 0.459 * Math.sin(kappa), 0.459 * Math.cos(kappa)));
@@ -202,7 +206,7 @@ export function makeMachines(H) {
         for (const s of ['l', 'r']) { const sg = s === 'l' ? 1 : -1; rig.armIK(s, new V3(sg * -0.3, padTop + 0.04, -0.75), new V3(sg * -0.5, 0.2, 0), new V3(0, 0, -1), new V3(0, -1, 0), 0.8); }
         neckLevel(rig, 20);
         const Al = rig.wp('foot_l').clone().add(rig.wp('foot_r')).multiplyScalar(0.5), knee = rig.wp('calf_l').clone(), cd = Al.clone().sub(knee).normalize();
-        const rp = Al.clone().add(new V3(0, 0.07, 0)).addScaledVector(cd, -0.02); st.roller.position.copy(rp);
+        const cn = new V3(0, cd.z, -cd.y).normalize(), rp = Al.clone().addScaledVector(cn, 0.1).addScaledVector(cd, -0.03); st.roller.position.copy(rp);
         setBetween(st.arm, new V3(0, 0.3, 0.62), rp); st.stack.lift.position.y = 0.2 * t;
         return { grips: [new V3(0, Al.y, Al.z)] };
       }

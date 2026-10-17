@@ -57,6 +57,7 @@ export function makeBarbell(plates = [20]) {
 
 /* Bench: pad top surface at y = 0.43 m, seat starts at z = 0. Back pad length goes toward -Z (head end), flat by default.
    Origin at the middle of the seat, on the floor. backDeg raises the back pad (incline). */
+export const BENCH_TOP = 0.45;   // measured top of the pad (the rounded pad is a little taller than its nominal size)
 export function makeBench(backDeg = 0) {
   const g = new THREE.Group();
   const seat = box(0.28, 0.07, 0.34, M.padBlack, 0.025); seat.position.set(0, 0.395, 0.17); g.add(seat);
