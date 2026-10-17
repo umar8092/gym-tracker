@@ -28,8 +28,12 @@
     'Sweat now, shine later.', 'A little more than last time is still progress.', 'Motivation gets you started. Habit keeps you going.', 'Rest is part of the plan, not a break from it.', 'Lift with control. The weight will follow.',
     'Do it for the person you are becoming.', 'Consistency beats intensity.', 'Today counts, even if it is only a short session.', 'Train hard, recover well, repeat.', 'One more good set.', 'Results come from the days nobody sees.',
     'Start where you are. Use what you have.', 'Be patient. Muscle takes months, not days.', 'The hardest rep is the first one through the door.', 'Make it a habit, not a decision.', 'Good form first, heavy weight second.',
-    'You are one workout away from a better mood.', 'Every expert was once a beginner under the bar.', 'Fuel it, lift it, rest it.', 'Respect the process.', 'Better than yesterday.'];
-  function quoteHTML(t) { var d = Store.parse(t); return '<p class="quote">“' + QUOTES[(Math.floor(d.getTime() / 864e5) + d.getDate()) % QUOTES.length] + '”</p>'; }
+    'You are one workout away from a better mood.', 'Every expert was once a beginner under the bar.', 'Fuel it, lift it, rest it.', 'Respect the process.', 'Better than yesterday.', 'Strength does not come from what you can do, it comes from overcoming what you thought you could not.', 'Take care of your body. It is the only place you have to live.', 'Eat well, sleep well, lift well.', 'The pump fades, the progress stays.', 'Do not wish for it. Work for it.', 'Every rep is a vote for the person you want to be.', 'Slow progress is still progress.', 'Warm up, work hard, cool down, repeat.', 'Win the day.', 'You will never regret a workout you finished.', 'Fall in love with the process.', 'Earn your rest day.', 'Lighter weight with perfect form beats heavier with sloppy form.', 'Keep showing up.', 'Strong body, calm mind.'];
+  // three different quotes a day, stepping through the list so they change every day
+  function quoteHTML(t) {
+    var d = Store.parse(t), base = (Math.floor(d.getTime() / 864e5) + d.getDate()) * 3;
+    return '<section class="quotes" aria-label="Motivation">' + [0, 1, 2].map(function (i) { return '<blockquote class="d-card d-quote q' + i + '"><p class="quote">“' + QUOTES[(base + i * 7) % QUOTES.length] + '”</p></blockquote>'; }).join('') + '</section>';
+  }
 
   function dashParts(t) {
     var info = Store.dayInfo(t), d = Store.parse(t), plan = Data.planFor(d.getDay()), all = Store.allLogs();
@@ -93,7 +97,7 @@
 
   function viewToday() {
     var t = Store.today(), P = dashParts(t), dl = deloadHTML(t);
-    var h = '<div class="dash today"><section class="d-card d-hero">' + P.hero + '</section><section class="d-card d-week">' + P.week + '</section><section class="d-card d-quote">' + quoteHTML(t) + '</section>' + (dl ? '<section class="d-card d-note">' + dl + '</section>' : '') + '</div>';
+    var h = '<div class="dash today"><section class="d-card d-hero">' + P.hero + '</section><section class="d-card d-week">' + P.week + '</section>' + quoteHTML(t) + (dl ? '<section class="d-card d-note">' + dl + '</section>' : '') + '</div>';
     h += '<p class="sync-line" id="sync-line">' + esc(syncText()) + '</p>';
     if (!Store.persistent) { h += '<p class="warn">This browser is not saving data (private mode or storage blocked). Export a backup from the Plan tab before you close it.</p>'; }
     return h;

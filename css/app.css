@@ -572,7 +572,7 @@ main[data-r="m"] section.ex { background: var(--surface); border: 0; border-radi
   .dash.over .d-stats { grid-column: 1 / -1; }
   .dash.over .d-stats .stats.six { grid-template-columns: repeat(6, 1fr); }
   .dash.today { grid-template-columns: 1.5fr 1fr; grid-template-areas: "hero week" "hero quote" "note note"; grid-template-rows: auto 1fr; }
-  .dash.today .d-hero { grid-area: hero; } .dash.today .d-week { grid-area: week; } .dash.today .d-quote { grid-area: quote; align-self: stretch; display: flex; align-items: center; } .dash.today .d-note { grid-area: note; }
+  .dash.today .d-hero { grid-area: hero; } .dash.today .d-week { grid-area: week; } .dash.today .quotes { grid-area: quote; } .dash.today .d-note { grid-area: note; }
   main[data-r="progress"] > .sec, main[data-r="plan"] > .sec { margin-top: 0; margin-bottom: 18px; }
 }
 
@@ -589,3 +589,12 @@ main[data-r="m"] section.ex { background: var(--surface); border: 0; border-radi
 }
 .d-week { container-type: inline-size; }
 .wd .mn { font-size: clamp(11px, 3.7cqw, 19px); }
+
+.quotes { display: grid; gap: 12px; align-content: start; }
+.d-quote { margin: 0; padding: 20px 22px; }
+.d-quote .quote { font-size: 22px; }
+.d-quote.q0 { background: var(--accent); color: var(--on-accent); }
+.d-quote.q1 { background: var(--ember); color: var(--on-ember); }
+.d-quote.q2 { background: var(--deep); color: var(--on-deep); }
+.d-quote.q1 .quote { color: var(--on-ember); } .d-quote.q2 .quote { color: var(--on-deep); }
+@media (min-width: 640px) and (max-width: 999px) { .quotes { grid-template-columns: repeat(3, 1fr); } .d-quote .quote { font-size: 19px; } }
