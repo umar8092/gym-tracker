@@ -605,3 +605,25 @@ main[data-r="pick"], main[data-r="summary"], main[data-r="login"], main[data-r="
 main[data-r="summary"] .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 @media (max-width: 560px) { main[data-r="summary"] .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (min-width: 1000px) { main[data-r="pick"] .pick-list { grid-template-columns: 1fr 1fr; } main[data-r="week"] .presets, main[data-r="week"] .sched { max-width: none; } }
+
+/* phone pass: comfortable tap targets at every size */
+.note a { display: inline-block; padding: 12px 6px 12px 0; min-height: 44px; }
+.crumb { padding: 14px 0; min-height: 44px; }
+@media (max-width: 480px) {
+  main { padding-left: 14px; padding-right: 14px; }
+  .cal { gap: 4px; }
+  .cd { aspect-ratio: auto; height: 48px; }
+  .rail { margin-left: -14px; margin-right: -14px; padding-left: 14px; padding-right: 14px; }
+  .stepper button { width: 42px; }
+}
+@media (max-width: 380px) { .stepper button { width: 40px; } }
+/* landscape phones: keep the bottom bar slim so content has room */
+@media (max-height: 480px) and (orientation: landscape) {
+  .tabs a { min-height: 50px; flex-direction: row; gap: 8px; } .tabs a svg { width: 20px; height: 20px; }
+  body { padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px)); }
+  #rest { bottom: calc(60px + env(safe-area-inset-bottom, 0px)); }
+}
+.switch button { height: 40px; width: 64px; }
+.switch button::after { top: 5px; width: 28px; height: 28px; }
+.switch button[aria-checked="true"]::after { transform: translateX(24px); }
+.edit-day summary { min-height: 44px; }
