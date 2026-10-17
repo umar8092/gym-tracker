@@ -1,0 +1,13 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<link rel="stylesheet" href="../css/app.css">
+<style>body{padding:16px} .g{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:18px} .c h3{font-size:20px} .pair{display:flex;gap:8px} .pair svg{width:50%} </style>
+<div class="g" id="g"></div>
+<script src="../js/data.js"></script><script src="../js/muscle.js"></script>
+<script>
+document.getElementById('g').innerHTML = Data.EX.map(function(e){
+  var svg = Muscle.svg(e);
+  var a = svg.replace(/<svg/, '<svg'), v = svg.indexOf('<g data-view="back"');
+  var head = svg.slice(0, svg.indexOf('<g data-view="front"')), front = svg.slice(svg.indexOf('<g data-view="front"'), v), back = svg.slice(v, svg.lastIndexOf('</svg>'));
+  return '<div class="c"><h3>'+e.name+' ('+e.mus.view+')</h3><div class="pair">'+head+front+'</svg>'+head+back+'</svg></div></div>';
+}).join('');
+</script>
