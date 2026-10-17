@@ -69,6 +69,7 @@
     updateSet: function (id, reps, kg) {
       db.logs.forEach(function (l) { if (l.id === id) { l.reps = reps; l.kg = kg; l.u = now(); l.dirty = true; } }); wrote();
     },
+    restoreSet: function (id) { db.logs.forEach(function (l) { if (l.id === id) { l.del = false; l.u = now(); l.dirty = true; } }); wrote(); },
     removeSet: function (id) {
       db.logs.forEach(function (l) { if (l.id === id) { l.del = true; l.u = now(); l.dirty = true; } }); wrote();
     },
@@ -144,7 +145,8 @@
       }
       return n;
     },
-    volume: function (logs) { return logs.reduce(function (s, l) { return s + l.reps * l.kg; }, 0); },
+    // shown volume, in the chosen display unit
+    volume: function (logs) { return logs.reduce(function (s, l) { return s + l.reps * (window.Stats ? window.Stats.toU(l.kg) : l.kg); }, 0); },
 
     /* ---- backup ---- */
     exportJSON: function () { return JSON.stringify(db, null, 2); },

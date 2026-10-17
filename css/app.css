@@ -653,3 +653,19 @@ body.resting main { padding-top: 70px; }
 @media (min-width: 1000px) { #rest { top: 84px; bottom: auto; left: auto; right: 24px; transform: none; } body.resting main { padding-top: 26px; } body.resting .rail { top: 150px; } body.resting .toast { top: 150px; } }
 .first-hint { margin-top: 10px; padding: 10px 12px; border: 1px dashed var(--gold); border-radius: 6px; font-size: 14px; color: var(--muted); max-width: 56ch; }
 .first-hint b { color: var(--gold-t); }
+
+.toast.act { pointer-events: auto; display: flex; align-items: center; gap: 14px; }
+.toast button { background: none; border: 0; color: var(--gold); font: 800 13px "Archivo", sans-serif; letter-spacing: .14em; text-transform: uppercase; padding: 8px 4px; min-height: 40px; cursor: pointer; }
+
+.wk-pos .num { color: var(--gold-t); }
+
+.pick-list li { display: flex; align-items: stretch; }
+.pick-list li > a:first-child { flex: 1; min-width: 0; }
+.pick-edit { display: flex; align-items: center; padding: 0 16px; border-left: 1px solid var(--line); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; font-weight: 800; color: var(--muted); text-decoration: none; text-align: center; white-space: normal; max-width: 110px; }
+.pick-edit:hover { color: var(--ink); background: var(--panel2); }
+.intro .link { min-height: 0; padding: 0; }
+@media (max-width: 560px) {
+  .pick-list li { flex-wrap: wrap; }
+  .pick-list li > a:first-child { flex: 1 1 100%; }
+  .pick-edit { flex: 1 1 100%; max-width: none; border-left: 0; border-top: 1px solid var(--line); justify-content: flex-start; padding: 12px 16px; min-height: 44px; }
+}

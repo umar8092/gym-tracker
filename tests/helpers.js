@@ -3,6 +3,7 @@ exports.signIn = async function (page, name = 'umar', extra = {}) {
   await page.context().route(/googleapis\.com/, r => r.abort()); // no real cloud in UI tests
   await page.addInitScript(([name, extra]) => {
     if (localStorage.getItem('gymtracker.user')) return; // seed once, never overwrite later edits
+    if (!localStorage.getItem('gymtracker.unit')) localStorage.setItem('gymtracker.unit', 'kg');   // tests assume kilograms unless they choose pounds
     const t = new Date(); const pad = n => (n < 10 ? '0' : '') + n; const ymd = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
     const db = Object.assign({ profile: { startKg: 92, goalKg: 75, startDate: ymd }, weights: [{ d: ymd, kg: 92, u: 1, dirty: false }], logs: [], hidden: {}, settings: { u: 1, dirty: false }, pull: { logs: 0, weights: 0 } }, extra);
     localStorage.setItem('gymtracker.user', name); localStorage.setItem('gymtracker.v2.' + name, JSON.stringify(db));

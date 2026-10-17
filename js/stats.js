@@ -3,6 +3,13 @@
 (function () {
   function epley(kg, reps) { return kg > 0 ? kg * (1 + reps / 30) : 0; }
   function r1(n) { return Math.round(n * 10) / 10; }
+  // display unit: data is always stored in kg; kg or lb is only how it is shown and typed
+  var UNIT = 'kg', LB = 2.20462262;
+  function setUnit(u) { UNIT = u === 'lb' ? 'lb' : 'kg'; }
+  function unitName() { return UNIT; }
+  function toU(kg) { return UNIT === 'lb' ? kg * LB : kg; }
+  function fromU(v) { return UNIT === 'lb' ? v / LB : v; }
+  function wText(kg) { return kgText(toU(kg)); }
   function kgText(n) { return Math.abs(n - Math.round(n)) < 0.001 ? String(Math.round(n)) : String(r1(n)); }
 
   function summarize(date, sets) {
@@ -28,7 +35,7 @@
   // how one set compares with the same set number last time
   function setDelta(now, prev) {
     if (!prev) { return null; }
-    if (now.kg !== prev.kg) { var d = r1(now.kg - prev.kg); return { dir: d > 0 ? 'up' : 'down', text: (d > 0 ? '+' : '−') + kgText(Math.abs(d)) + ' kg' }; }
+    if (now.kg !== prev.kg) { var d = r1(toU(now.kg) - toU(prev.kg)); if (d === 0) { return { dir: 'same', text: 'same' }; } return { dir: d > 0 ? 'up' : 'down', text: (d > 0 ? '+' : '−') + kgText(Math.abs(d)) + ' ' + UNIT }; }
     if (now.reps !== prev.reps) { var r = now.reps - prev.reps; return { dir: r > 0 ? 'up' : 'down', text: (r > 0 ? '+' : '−') + Math.abs(r) + (Math.abs(r) === 1 ? ' rep' : ' reps') }; }
     return { dir: 'same', text: 'same' };
   }
@@ -45,8 +52,8 @@
     else { verdict = work >= 0.05 ? 'up' : work <= -0.05 ? 'down' : 'same'; }
     var parts = [];
     if (!bodyweight) {
-      if (a.topKg !== b.topKg) { parts.push('Heaviest set ' + (a.topKg > b.topKg ? 'up ' : 'down ') + kgText(Math.abs(a.topKg - b.topKg)) + ' kg (' + kgText(b.topKg) + ' to ' + kgText(a.topKg) + ')'); }
-      else { parts.push('Same heaviest set (' + kgText(a.topKg) + ' kg)'); }
+      if (a.topKg !== b.topKg) { parts.push('Heaviest set ' + (a.topKg > b.topKg ? 'up ' : 'down ') + wText(Math.abs(a.topKg - b.topKg)) + ' ' + UNIT + ' (' + wText(b.topKg) + ' to ' + wText(a.topKg) + ')'); }
+      else { parts.push('Same heaviest set (' + wText(a.topKg) + ' ' + UNIT + ')'); }
     }
     if (a.n !== b.n) { parts.push(a.n + (a.n === 1 ? ' set' : ' sets') + ' instead of ' + b.n); }
     if (b.volume > 0 && !bodyweight && Math.abs(work) >= 0.02) { parts.push('total ' + (work > 0 ? 'up ' : 'down ') + Math.round(Math.abs(work) * 100) + '%'); }
@@ -105,8 +112,8 @@
     var weakest = Math.min.apply(null, atTop.map(function (s) { return s.reps; }));
     var allTop = last.sets.every(function (s) { return s.reps >= high; });
     if (maxKg === 0) { return { kg: 0, reps: weakest + 1, why: 'Last time your lowest set was ' + weakest + ' reps.' }; }
-    if (allTop) { return { kg: maxKg + 2.5, reps: low, why: 'You reached ' + high + ' reps on every set last time, so add weight.' }; }
-    return { kg: maxKg, reps: Math.min(high, weakest + 1), why: 'Last time your lowest set at ' + kgText(maxKg) + ' kg was ' + weakest + ' reps.' };
+    if (allTop) { return { kg: maxKg + (UNIT === 'lb' ? 5 / LB : 2.5), reps: low, why: 'You reached ' + high + ' reps on every set last time, so add weight.' }; }
+    return { kg: maxKg, reps: Math.min(high, weakest + 1), why: 'Last time your lowest set at ' + wText(maxKg) + ' ' + UNIT + ' was ' + weakest + ' reps.' };
   }
 
   // plates per side for a barbell. avail in kg, largest first.
@@ -142,7 +149,7 @@
   // warm-up ramp toward the first working weight: ~50%, 70%, 85% of it, in 2.5 kg steps, only sets that are lighter than the last and at least 5 kg
   function warmup(workKg) {
     var out = [], last = 0;
-    [[0.5, 8], [0.7, 5], [0.85, 3]].forEach(function (x) { var kg = Math.round(workKg * x[0] / 2.5) * 2.5; if (kg >= 5 && kg > last && kg < workKg) { out.push({ kg: kg, reps: x[1] }); last = kg; } });
+    [[0.5, 8], [0.7, 5], [0.85, 3]].forEach(function (x) { var step = UNIT === 'lb' ? 5 : 2.5, kg = fromU(Math.round(toU(workKg) * x[0] / step) * step); if (toU(kg) >= (UNIT === 'lb' ? 10 : 5) && kg > last + 1e-6 && kg < workKg - 1e-6) { out.push({ kg: kg, reps: x[1] }); last = kg; } });
     return out;
   }
 
@@ -165,6 +172,6 @@
     return r;
   }
 
-  var Stats = { epley: epley, kgText: kgText, summarize: summarize, sessions: sessions, inRange: inRange, setDelta: setDelta, compare: compare, progress: progress, prFor: prFor, PR_TEXT: PR_TEXT, records: records, target: target, plates: plates, trend: trend, record: record, calories: calories, warmup: warmup, setsByGroup: setsByGroup };
+  var Stats = { setUnit: setUnit, unitName: unitName, toU: toU, fromU: fromU, wText: wText, epley: epley, kgText: kgText, summarize: summarize, sessions: sessions, inRange: inRange, setDelta: setDelta, compare: compare, progress: progress, prFor: prFor, PR_TEXT: PR_TEXT, records: records, target: target, plates: plates, trend: trend, record: record, calories: calories, warmup: warmup, setsByGroup: setsByGroup };
   if (typeof module !== 'undefined') { module.exports = Stats; } else { window.Stats = Stats; }
 })();

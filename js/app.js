@@ -4,25 +4,57 @@
   var toastEl = document.getElementById('toast');
   var DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  var QUICK_KG = [2.5, 5, 7.5, 10, 12.5];
-  var MENU_KG = []; for (var q = 2.5; q <= 120; q += 2.5) { MENU_KG.push(q); }
 
   var draft = {};            // exId -> {reps, kg}, survives re-rendering of one exercise
   var calState = null;       // {y, m, sel}
   var toastTimer = 0;
 
   function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
+  // weights: stored in kg, shown in the unit the person chose (kg or lb)
+  var DEF_UNIT = /^en-US$/i.test(navigator.language || '') ? 'lb' : 'kg';
+  Stats.setUnit((function () { try { return localStorage.getItem('gymtracker.unit') || DEF_UNIT; } catch (e) { return DEF_UNIT; } })());
+  function U() { return Stats.unitName(); }
+  function wStr(kg) { return kgStr(Stats.toU(kg)); }
+  // quick weights and the long menu, in whichever unit is chosen (the values are kept in kg)
+  function quickKg() { return (U() === 'lb' ? [5, 10, 15, 20, 25] : [2.5, 5, 7.5, 10, 12.5]).map(Stats.fromU); }
+  function menuKg() { var a = [], step = U() === 'lb' ? 5 : 2.5, max = U() === 'lb' ? 300 : 120; for (var q = step; q <= max; q += step) { a.push(Stats.fromU(q)); } return a; }
+  var BAR_NAME = function () { return U() === 'lb' ? '45 lb' : '20 kg'; };
   function kgStr(n) { return Math.abs(n - Math.round(n)) < 0.001 ? String(Math.round(n)) : String(Math.round(n * 10) / 10); }
   function longDate(s) { var d = Store.parse(s); return DAYS[d.getDay()] + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()]; }
   function mShort(id) { return mName(id).slice(0, 3); }
   function mList(a) { return a.map(mName).join(' + '); }
   function mName(id) { return Data.MUSCLES[id] ? Data.MUSCLES[id].name : id; }
-  function toast(msg) {
-    toastEl.textContent = msg; toastEl.classList.add('on');
-    clearTimeout(toastTimer); toastTimer = setTimeout(function () { toastEl.classList.remove('on'); }, 1800);
+  // act = { label, fn }: a button in the toast (Undo). Such a toast stays longer and can be tapped.
+  function toast(msg, act) {
+    toastEl.textContent = msg; toastEl.classList.toggle('act', !!act);
+    if (act) { var b = document.createElement('button'); b.type = 'button'; b.textContent = act.label; b.addEventListener('click', function () { toastEl.classList.remove('on'); act.fn(); }); toastEl.appendChild(b); }
+    toastEl.classList.add('on');
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { toastEl.classList.remove('on'); }, act ? 6000 : 1800);
   }
   function weekStart(s) { var d = Store.parse(s), off = (d.getDay() + 6) % 7; return Store.addDays(s, -off); }
   function visibleEx(muscle) { return Data.exercisesFor(muscle).filter(function (e) { return !Store.isHidden(e.id); }); }
+
+  /* =========================================================  SESSION TIMER + SCREEN AWAKE  */
+  // The session clock is a start time kept on the device, so it keeps running if the app is closed or the phone locks.
+  var Sess = {
+    get: function () { try { var o = JSON.parse(localStorage.getItem('gymtracker.session')); return o && o.d === Store.today() ? o : null; } catch (e) { return null; } },
+    start: function () { var o = Sess.get(); if (o && o.end) { delete o.end; try { localStorage.setItem('gymtracker.session', JSON.stringify(o)); } catch (e) {} } if (!o) { try { localStorage.setItem('gymtracker.session', JSON.stringify({ d: Store.today(), start: Date.now() })); } catch (e) {} } },
+    end: function () { var o = Sess.get(); if (o && !o.end) { o.end = Date.now(); try { localStorage.setItem('gymtracker.session', JSON.stringify(o)); } catch (e) {} } },
+    ms: function () { var o = Sess.get(); return o ? (o.end || Date.now()) - o.start : 0; },
+    text: function () { var m = Math.floor(Sess.ms() / 60000), sec = Math.floor(Sess.ms() / 1000) % 60; return Math.floor(m / 60) ? Math.floor(m / 60) + ':' + (m % 60 < 10 ? '0' : '') + (m % 60) + ':' + (sec < 10 ? '0' : '') + sec : m + ':' + (sec < 10 ? '0' : '') + sec; }
+  };
+  var sessTick = 0, wakeLock = null;
+  function startSessTick() {
+    clearInterval(sessTick); var el = document.getElementById('sess-t'); if (!el) { return; }
+    var paint = function () { el.textContent = Sess.text(); }; paint(); sessTick = setInterval(paint, 1000);
+  }
+  function keepAwake(on) {
+    var want = on && localStorage.getItem('gymtracker.awake') !== 'off' && 'wakeLock' in navigator;
+    if (!want) { if (wakeLock) { wakeLock.release().catch(function () {}); wakeLock = null; } return; }
+    if (wakeLock) { return; }
+    navigator.wakeLock.request('screen').then(function (l) { wakeLock = l; l.addEventListener('release', function () { wakeLock = null; }); }).catch(function () {});
+  }
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && route().name === 'm') { keepAwake(true); } });
 
   /* =========================================================  3D ON DEMAND  */
   // The 3D engine, the model and its textures (about 1.8 MB) are only fetched when someone opens a form guide.
@@ -175,7 +207,7 @@
   /* ---------- fight-card helpers ---------- */
   // heaviest-looking set of a list (by estimated max, reps for bodyweight)
   function bestSet(sets) { var b = null; sets.forEach(function (s) { if (!b || (s.kg > 0 || b.kg > 0 ? Stats.epley(s.kg, s.reps) > Stats.epley(b.kg, b.reps) : s.reps > b.reps)) { b = s; } }); return b; }
-  function setText(s) { return s ? (s.kg > 0 ? s.reps + ' × ' + kgStr(s.kg) : s.reps + ' reps') : '—'; }
+  function setText(s) { return s ? (s.kg > 0 ? s.reps + ' × ' + wStr(s.kg) : s.reps + ' reps') : '—'; }
   function thumbHTML(ex, cls) {
     return '<span class="thumb ' + (cls || '') + '">' + (ex.custom || saveData() ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h18M6 7v10M18 7v10M9 9v6M15 9v6"/></svg>' : '<img src="img/ex/' + ex.id + '.webp" alt="" loading="lazy" decoding="async">') + '</span>';
   }
@@ -208,8 +240,8 @@
     var p = Store.profile(), cur = Store.currentKg(), tr = Stats.trend(Store.weights(), p.goalKg, t), rec = Stats.record(Store.allLogs());
     var total = p.startKg - p.goalKg, pct = total > 0 ? Math.max(0, Math.min(1, (p.startKg - cur) / total)) : 0, row = function (l, a, b) { return '<div class="row"><div>' + l + '</div><b>' + a + '</b><b>' + (b || '') + '</b></div>'; };
     return '<div class="lab"><span>Tale of the tape</span><span>Today vs goal</span></div><div class="hd"><div>&nbsp;</div><span>' + esc(Store.user()) + '</span><span>Goal</span></div>' +
-      row('Weight kg', kgStr(cur), kgStr(p.goalKg)) + row('To go', cur > p.goalKg ? kgStr(cur - p.goalKg) : 'Done', '') +
-      (tr ? row('Pace', (tr.perWeek < 0 ? '−' : '+') + kgStr(Math.abs(tr.perWeek)) + '/wk', '') : '') + (tr && tr.etaDays ? row('Goal date', shortDate(Store.addDays(t, tr.etaDays)).replace(/^\w+ /, ''), '') : '') +
+      row('Weight ' + U(), wStr(cur), wStr(p.goalKg)) + row('To go', cur > p.goalKg ? wStr(cur - p.goalKg) : 'Done', '') +
+      (tr ? row('Pace', (tr.perWeek < 0 ? '−' : '+') + wStr(Math.abs(tr.perWeek)) + '/wk', '') : '') + (tr && tr.etaDays ? row('Goal date', shortDate(Store.addDays(t, tr.etaDays)).replace(/^\w+ /, ''), '') : '') +
       row('Record W–L–D', rec.w + '–' + rec.l + '–' + rec.d, '') + row('Unbeaten run', Store.streak() + (Store.streak() === 1 ? ' day' : ' days'), '') +
       '<div class="goal-bar" role="img" aria-label="' + Math.round(pct * 100) + ' percent of the way to your goal weight"><i style="width:' + Math.round(pct * 100) + '%"></i></div><p style="margin-top:8px"><a class="link" href="#/">Log weight</a></p>';
   }
@@ -238,7 +270,7 @@
       var logs = Store.logsOn(t), names = info.trained.map(mName).join(' and '), rowsN = 0;
       ticker += '<span>' + esc(names) + ' day</span><span>' + (plans.filter(function (m) { return info.trained.indexOf(m) < 0; }).length ? 'Halftime' : 'Fight over') + '</span>';
       var left = plans.filter(function (m) { return info.trained.indexOf(m) < 0; });
-      main = '<div class="main-event noimg"><div class="me-l"><span class="badge red">' + (left.length ? 'Halftime' : 'Fight over') + '</span><h1>' + esc(names) + ' done</h1><p class="vs">' + logs.length + (logs.length === 1 ? ' round' : ' rounds') + ' · ' + Math.round(Store.volume(logs)).toLocaleString() + ' kg lifted · about ' + Stats.calories(logs, cur) + ' kcal (estimate)</p>' +
+      main = '<div class="main-event noimg"><div class="me-l"><span class="badge red">' + (left.length ? 'Halftime' : 'Fight over') + '</span><h1>' + esc(names) + ' done</h1><p class="vs">' + logs.length + (logs.length === 1 ? ' round' : ' rounds') + ' · ' + Math.round(Store.volume(logs)).toLocaleString() + ' ' + U() + ' lifted · about ' + Stats.calories(logs, cur) + ' kcal (estimate)</p>' +
         '<p class="done-note">' + (left.length ? mList(left) + ' still to go today.' : 'Nice work.') + '</p><div class="today-actions">' + left.map(function (m) { return '<a class="btn primary" href="#/m/' + m + '">Start ' + mName(m).toLowerCase() + ' →</a>'; }).join('') + '<a class="' + (left.length ? 'link' : 'btn primary') + '" href="#/m/' + info.trained[0] + '">Add more rounds</a><a class="link" href="#/summary/' + info.trained[0] + '">See today\'s summary</a><a class="link" href="#/pick">Train another muscle</a></div></div></div>';
       info.trained.forEach(function (m) { var seen = {}; logs.filter(function (l) { return l.m === m; }).forEach(function (l) { if (!seen[l.e] && Data.byId[l.e]) { seen[l.e] = 1; under += '<li>' + doneRow(Data.byId[l.e], rowsN++, t, m) + '</li>'; } }); });
     } else if (plan) {
@@ -286,7 +318,7 @@
       lastLogs = Store.logsOn(lastD); var ids = [], up = 0, down = 0, cmp = 0, ms = [];
       lastLogs.forEach(function (l) { if (ids.indexOf(l.e) < 0) { ids.push(l.e); } if (ms.indexOf(l.m) < 0) { ms.push(l.m); } });
       ids.forEach(function (id) { var ss = Stats.sessions(id, all), c = ss.filter(function (x) { return x.date === lastD; })[0], pv = ss.filter(function (x) { return x.date < lastD; }).pop(); if (c && pv) { cmp++; var v = Stats.compare(c, pv).verdict; if (v === 'up') { up++; } else if (v === 'down') { down++; } } });
-      last += '<h3>' + esc(ms.map(mName).join(' and ')) + '</h3><p class="muted">' + (lastD === t ? 'Today' : longDate(lastD)) + '</p><p style="margin-top:8px">' + lastLogs.length + ' sets, ' + Math.round(Store.volume(lastLogs)).toLocaleString() + ' kg lifted, about ' + Stats.calories(lastLogs, cur) + ' kcal' +
+      last += '<h3>' + esc(ms.map(mName).join(' and ')) + '</h3><p class="muted">' + (lastD === t ? 'Today' : longDate(lastD)) + '</p><p style="margin-top:8px">' + lastLogs.length + ' sets, ' + Math.round(Store.volume(lastLogs)).toLocaleString() + ' ' + U() + ' lifted, about ' + Stats.calories(lastLogs, cur) + ' kcal' +
         (cmp ? '. Won ' + up + ' of ' + cmp + ' bouts against the time before' + (down ? ', lost ' + down : '') : '') + '.</p>';
     }
     return { stats: stats, tape: tapeHTML(t), week: '<div class="lab"><span>Fight week</span><span></span></div>' + weekHTML(t), last: last, bal: '<div class="lab"><span>Sets per muscle</span><span>This week vs 4-week average</span></div>' + balanceHTML(t) };
@@ -330,8 +362,8 @@
     if (f === 'loading') { return h + '<p class="muted">Loading…</p></li>'; }
     if (f === 'error') { return h + '<p class="muted">Could not load. Check the name and your connection.</p></li>'; }
     if (!f) { return h + '<p class="muted">Tap Load to see their last two weeks.</p></li>'; }
-    return h + '<p class="muted">Last 14 days: <b>' + f.days + '</b> sessions. Last 7 days: <b>' + f.sets + '</b> sets, ' + f.vol.toLocaleString() + ' kg lifted.</p>' +
-      (f.best.length ? '<p class="muted">Best recent lifts: ' + f.best.map(function (b) { return esc(b.name) + ' ' + kgStr(b.kg) + ' kg × ' + b.reps; }).join(', ') + '.</p>' : '') + '</li>';
+    return h + '<p class="muted">Last 14 days: <b>' + f.days + '</b> sessions. Last 7 days: <b>' + f.sets + '</b> sets, ' + Math.round(Stats.toU(f.vol)).toLocaleString() + ' ' + U() + ' lifted.</p>' +
+      (f.best.length ? '<p class="muted">Best recent lifts: ' + f.best.map(function (b) { return esc(b.name) + ' ' + wStr(b.kg) + ' ' + U() + ' × ' + b.reps; }).join(', ') + '.</p>' : '') + '</li>';
   }
   function friendSummary(logs) {
     var t = Store.today(), d14 = Store.addDays(t, -13), d7 = Store.addDays(t, -6), days = {}, sets = 0, vol = 0, best = {};
@@ -353,8 +385,8 @@
   function weekSummaryText() {
     var t = Store.today(), ws = weekStart(t), we = Store.addDays(ws, 6), logs = Store.allLogs().filter(function (l) { return l.d >= ws && l.d <= we; }), days = {}, prs = 0, ms = [];
     logs.forEach(function (l) { days[l.d] = 1; if (ms.indexOf(l.m) < 0) { ms.push(l.m); } if (Stats.prFor(l, exLogs(l.e))) { prs++; } });
-    return 'Gym week from ' + shortDate(ws) + ': ' + Object.keys(days).length + ' sessions' + (ms.length ? ' (' + ms.map(mName).join(', ') + ')' : '') + ', ' + logs.length + ' sets, ' + Math.round(Store.volume(logs)).toLocaleString() + ' kg lifted' + (prs ? ', ' + prs + ' new PRs' : '') +
-      ', about ' + Stats.calories(logs, Store.currentKg()) + ' kcal. Streak ' + Store.streak() + ' days. Weight ' + kgStr(Store.currentKg()) + ' kg, goal ' + kgStr(Store.profile().goalKg) + ' kg.';
+    return 'Gym week from ' + shortDate(ws) + ': ' + Object.keys(days).length + ' sessions' + (ms.length ? ' (' + ms.map(mName).join(', ') + ')' : '') + ', ' + logs.length + ' sets, ' + Math.round(Store.volume(logs)).toLocaleString() + ' ' + U() + ' lifted' + (prs ? ', ' + prs + ' new PRs' : '') +
+      ', about ' + Stats.calories(logs, Store.currentKg()) + ' kcal. Streak ' + Store.streak() + ' days. Weight ' + wStr(Store.currentKg()) + ' ' + U() + ', goal ' + wStr(Store.profile().goalKg) + ' ' + U() + '.';
   }
 
   /* ---------- exercise library (public-domain free-exercise-db), loaded on first search ---------- */
@@ -436,7 +468,7 @@
     Data.ORDER.forEach(function (id) {
       var m = Data.MUSCLES[id];
       h += '<li><a href="#/m/' + id + '"><span><span class="nm">' + m.name + '</span><br><span class="sub">' + daysText(id) + ', ' + visibleEx(id).length + ' exercises</span></span>' +
-        (Data.planAll(Store.parse(t).getDay()).indexOf(id) >= 0 ? '<span class="tag">Planned today</span>' : '') + '</a></li>';
+        (Data.planAll(Store.parse(t).getDay()).indexOf(id) >= 0 ? '<span class="tag">Planned today</span>' : '') + '</a><a class="pick-edit" href="#/plan/' + id + '">Edit ' + Data.exercisesFor(id).length + ' exercises</a></li>';
     });
     return h + '</ul>';
   }
@@ -449,8 +481,8 @@
     return { reps: parseInt(ex.reps, 10) || 10, kg: 0 };
   }
 
-  var barKg = (function () { try { return +localStorage.getItem('gymtracker.bar') || 20; } catch (e) { return 20; } })();
-  var PLATES = [25, 20, 15, 10, 5, 2.5, 1.25];
+  var barKg = (function () { try { return +localStorage.getItem('gymtracker.bar') || 20; } catch (e) { return 20; } })();   // 20 or 15 (the lighter bar); shown as 45 or 35 lb in pounds
+  function platesList() { return U() === 'lb' ? [45, 35, 25, 10, 5, 2.5] : [25, 20, 15, 10, 5, 2.5, 1.25]; }
   function arrow(dir) {
     if (dir === 'same' || dir === 'mixed') { return '<svg class="ar" viewBox="0 0 10 10" aria-hidden="true"><rect x="1" y="4" width="8" height="2" rx="1"/></svg>'; }
     return '<svg class="ar" viewBox="0 0 10 10" aria-hidden="true"><polygon points="' + (dir === 'up' ? '5,1 9,8 1,8' : '1,2 9,2 5,9') + '"/></svg>';
@@ -461,11 +493,11 @@
   var VLABEL = { up: 'Won', down: 'Lost', same: 'Draw', mixed: 'Split' };
 
   function platesHTML(exId) {
-    var kg = draft[exId] ? num(draft[exId].kg) : 0, r = Stats.plates(kg, barKg, PLATES);
-    var h = '<div class="bar-pick" role="group" aria-label="Bar weight">' + [15, 20].map(function (b) { return '<button type="button" class="chip" data-act="bar" data-v="' + b + '" aria-pressed="' + (barKg === b) + '">' + b + ' kg bar</button>'; }).join('') + '</div>';
-    if (!r) { return h + '<p class="pl-text">The bar alone is ' + barKg + ' kg. Enter a total of at least that.</p>'; }
+    var lb = U() === 'lb', bar = lb ? (barKg === 15 ? 35 : 45) : barKg, total = draft[exId] ? Stats.toU(num(draft[exId].kg)) : 0, r = Stats.plates(total, bar, platesList());
+    var h = '<div class="bar-pick" role="group" aria-label="Bar weight">' + [15, 20].map(function (b) { return '<button type="button" class="chip" data-act="bar" data-v="' + b + '" aria-pressed="' + (barKg === b) + '">' + (lb ? (b === 15 ? 35 : 45) : b) + ' ' + U() + ' bar</button>'; }).join('') + '</div>';
+    if (!r) { return h + '<p class="pl-text">The bar alone is ' + bar + ' ' + U() + '. Enter a total of at least that.</p>'; }
     var side = r.perSide.length ? r.perSide.map(function (p) { return p.count + ' × ' + kgStr(p.plate); }).join(' + ') : 'no plates';
-    return h + '<p class="pl-text"><b>' + kgStr(kg) + ' kg total:</b> each side ' + side + '.' + (r.exact ? '' : ' The closest you can load with standard plates is ' + kgStr(r.achieved) + ' kg.') + '</p>';
+    return h + '<p class="pl-text"><b>' + kgStr(total) + ' ' + U() + ' total:</b> each side ' + side + '.' + (r.exact ? '' : ' The closest you can load with standard plates is ' + kgStr(r.achieved) + ' ' + U() + '.') + '</p>';
   }
 
   function dr_kg(sec) { var i = sec.querySelector('[data-f="kg"]'); return i ? i.value : '0'; }
@@ -477,25 +509,25 @@
     h += '<h3 style="margin-top:16px">Last sessions</h3><ul class="hist-list">';
     ss.slice(-4).reverse().forEach(function (x, i) {
       var idx = ss.length - 1 - i, prev = ss[idx - 1], cmp = prev ? Stats.compare(x, prev) : null;
-      h += '<li><span class="hd">' + shortDate(x.date) + '</span><span class="hs num">' + x.sets.map(function (q) { return q.reps + ' × ' + kgStr(q.kg); }).join(', ') + ' kg</span>' +
+      h += '<li><span class="hd">' + shortDate(x.date) + '</span><span class="hs num">' + x.sets.map(function (q) { return q.reps + ' × ' + wStr(q.kg); }).join(', ') + ' ' + U() + '</span>' +
         (cmp ? '<span class="vd ' + cmp.verdict + '">' + arrow(cmp.verdict) + VLABEL[cmp.verdict] + '</span>' : '<span class="vd same">First</span>') +
         '<details class="edit-day"><summary>Edit sets</summary><ul class="edit-sets">' + x.sets.map(function (q) {
-          return '<li><input class="text-in num" type="number" inputmode="numeric" min="1" max="100" data-f="er" value="' + q.reps + '" aria-label="Reps"> × <input class="text-in num" type="number" inputmode="decimal" step="0.5" min="0" max="500" data-f="ek" value="' + kgStr(q.kg) + '" aria-label="Kg"> kg ' +
+          return '<li><input class="text-in num" type="number" inputmode="numeric" min="1" max="100" data-f="er" value="' + q.reps + '" aria-label="Reps"> × <input class="text-in num" type="number" inputmode="decimal" step="0.5" min="0" max="500" data-f="ek" value="' + wStr(q.kg) + '" aria-label="Kg"> kg ' +
             '<button class="btn small" type="button" data-act="set-save" data-id="' + q.id + '">Save</button><button class="link" type="button" data-act="set-del" data-id="' + q.id + '">Delete</button></li>'; }).join('') + '</ul></details></li>';
     });
     h += '</ul>';
     if (ss.length >= 3) {
       var useKg = ss.some(function (x) { return x.topKg > 0; });
-      h += '<p class="sub" style="margin-top:12px">' + (useKg ? 'Heaviest set per session (kg)' : 'Best reps per session') + '</p>' +
-        Charts.line(ss.map(function (x) { var y = useKg ? x.topKg : x.maxReps; return { x: Store.parse(x.date).getTime() / 864e5, y: y, label: shortDate(x.date) + ': ' + kgStr(y) + (useKg ? ' kg' : ' reps') }; }),
-          { unit: useKg ? ' kg' : ' reps', aria: 'Progress for ' + ex.name, xLabel: chartX });
+      h += '<p class="sub" style="margin-top:12px">' + (useKg ? 'Heaviest set per session (' + U() + ')' : 'Best reps per session') + '</p>' +
+        Charts.line(ss.map(function (x) { var y = useKg ? Stats.toU(x.topKg) : x.maxReps; return { x: Store.parse(x.date).getTime() / 864e5, y: y, label: shortDate(x.date) + ': ' + kgStr(y) + (useKg ? ' ' + U() + '' : ' reps') }; }),
+          { unit: useKg ? ' ' + U() + '' : ' reps', aria: 'Progress for ' + ex.name, xLabel: chartX });
     }
     return h;
   }
 
   // a beginner's hint for the very first set of an exercise with no history
   function firstHint(ex) {
-    var tip = ex.equip === 'Barbell' ? 'An empty barbell is 20 kg. Start with the bar or very light plates' : ex.equip === 'Dumbbells' ? 'Pick the lighter dumbbells (the weight of one)' : ex.equip === 'Machine' ? 'Put the pin near the top of the stack (lightest)' : 'Start with a light weight';
+    var tip = ex.equip === 'Barbell' ? 'An empty barbell is ' + BAR_NAME() + '. Start with the bar or very light plates' : ex.equip === 'Dumbbells' ? 'Pick the lighter dumbbells (the weight of one)' : ex.equip === 'Machine' ? 'Put the pin near the top of the stack (lightest)' : 'Start with a light weight';
     return tip + ', and choose a weight you can lift about 10 times with good form. You can add weight next session.';
   }
   function loggerHTML(ex) {
@@ -503,15 +535,15 @@
     var dr = draft[ex.id] || (draft[ex.id] = initialDraft(ex, today));
     var h = '';
     if (last) {
-      h += '<p class="last">Last time (' + longDate(last.date).replace(/^\w+ /, '') + '): ' + last.sets.map(function (s) { return s.reps + ' × ' + kgStr(s.kg); }).join(', ') + ' kg</p>';
+      h += '<p class="last">Last time (' + longDate(last.date).replace(/^\w+ /, '') + '): ' + last.sets.map(function (s) { return s.reps + ' × ' + wStr(s.kg); }).join(', ') + ' ' + U() + '</p>';
     }
     if (!last && !sets.length && ex.equip !== 'Bodyweight' && !(dr.kg > 0)) { h += '<p class="first-hint"><b>First time?</b> ' + firstHint(ex) + '</p>'; }
     var tg = !sets.length && last ? Stats.target(ex.reps, Stats.summarize(last.date, last.sets)) : null;
-    if (tg) { h += '<p class="target"><b>Target today:</b> ' + tg.reps + ' reps' + (tg.kg > 0 ? ' × ' + kgStr(tg.kg) + ' kg' : '') + '. ' + esc(tg.why) + '</p>'; }
+    if (tg) { h += '<p class="target"><b>Target today:</b> ' + tg.reps + ' reps' + (tg.kg > 0 ? ' × ' + wStr(tg.kg) + ' ' + U() + '' : '') + '. ' + esc(tg.why) + '</p>'; }
     if (sets.length) {
       h += '<ol class="sets">' + sets.map(function (s, i) {
         var dl = last ? Stats.setDelta(s, last.sets[i]) : null, pr = Stats.prFor(s, all);
-        return '<li><span class="sn">Round ' + (i + 1) + '</span><span class="sv num">' + s.reps + ' reps × ' + kgStr(s.kg) + ' kg' +
+        return '<li><span class="sn">Round ' + (i + 1) + '</span><span class="sv num">' + s.reps + ' reps × ' + wStr(s.kg) + ' ' + U() + '' +
           (dl ? ' <span class="dl ' + dl.dir + '">' + (dl.dir === 'same' ? '' : arrow(dl.dir)) + dl.text + '</span>' : '') +
           (pr ? ' <span class="prb" title="' + Stats.PR_TEXT[pr] + '">PR</span>' : '') + '</span>' +
           '<button class="rm" type="button" data-act="rm" data-id="' + s.id + '" aria-label="Remove round ' + (i + 1) + '">Remove</button></li>';
@@ -521,13 +553,13 @@
     h += '<div class="logger">' +
       '<div class="fld"><label for="r-' + ex.id + '">' + (ex.timed ? 'Seconds' : 'Reps') + '</label><div class="stepper"><button type="button" data-act="rep-" aria-label="Fewer reps">−</button>' +
         '<input id="r-' + ex.id + '" class="num" type="number" inputmode="numeric" min="1" step="1" value="' + dr.reps + '" data-f="reps"><button type="button" data-act="rep+" aria-label="More reps">+</button></div></div>' +
-      '<div class="fld"><label for="k-' + ex.id + '">Kg' + (bw ? ' (0 = bodyweight)' : '') + '</label><div class="stepper"><button type="button" data-act="kg-" aria-label="Half a kilo less">−</button>' +
-        '<input id="k-' + ex.id + '" class="num" type="number" inputmode="decimal" min="0" step="0.5" value="' + kgStr(dr.kg) + '" data-f="kg"><button type="button" data-act="kg+" aria-label="Half a kilo more">+</button></div></div>' +
+      '<div class="fld"><label for="k-' + ex.id + '">' + (U() === 'lb' ? 'Lb' : 'Kg') + (bw ? ' (0 = bodyweight)' : '') + '</label><div class="stepper"><button type="button" data-act="kg-" aria-label="Less weight">−</button>' +
+        '<input id="k-' + ex.id + '" class="num" type="number" inputmode="decimal" min="0" step="0.5" value="' + wStr(dr.kg) + '" data-f="kg"><button type="button" data-act="kg+" aria-label="More weight">+</button></div></div>' +
       '<div class="kg-row"><div class="kg-pick" role="group" aria-label="Quick weights in kilograms">' +
-        QUICK_KG.map(function (v) { return '<button type="button" class="chip" data-act="kgset" data-v="' + v + '" aria-pressed="' + (dr.kg === v) + '">' + v + '</button>'; }).join('') +
+        quickKg().map(function (v) { return '<button type="button" class="chip" data-act="kgset" data-v="' + v + '" aria-pressed="' + (dr.kg === v) + '">' + wStr(v) + '</button>'; }).join('') +
         '<button type="button" class="chip more" data-act="menu" aria-haspopup="listbox" aria-expanded="false">More</button></div>' +
         '<div class="lb"><ul class="lb-menu" role="listbox" tabindex="-1" aria-label="Weight in kilograms" hidden>' +
-        MENU_KG.map(function (v) { return '<li role="option" data-act="kgset" data-v="' + v + '" aria-selected="' + (dr.kg === v) + '">' + kgStr(v) + ' kg</li>'; }).join('') +
+        menuKg().map(function (v) { return '<li role="option" data-act="kgset" data-v="' + v + '" aria-selected="' + (dr.kg === v) + '">' + wStr(v) + ' ' + U() + '</li>'; }).join('') +
         '</ul></div></div>' +
       '<button type="button" class="btn primary block log-btn" data-act="log">Log round ' + (sets.length + 1) + '</button></div>';
     var extra = '';
@@ -577,7 +609,7 @@
     var m = Data.MUSCLES[id];
     if (!m) { return '<a class="crumb" href="#/today">Back to today</a><h1>Not found</h1>'; }
     var exs = visibleEx(id), t = Store.today(), planned = Data.planAll(Store.parse(t).getDay()).indexOf(id) >= 0;
-    var h = '<a class="crumb" href="#/today">Back to today</a><h1>' + m.name + '</h1><p class="intro">' + (planned ? 'Planned for today. ' : '') + esc(m.blurb) + '</p>';
+    var h = '<a class="crumb" href="#/today">Back to today</a><h1>' + m.name + '</h1><p class="intro">' + (planned ? 'Planned for today. ' : '') + esc(m.blurb) + ' <a class="link" href="#/plan/' + id + '">Edit exercises</a></p>';
     if (!exs.length) { return h + '<p class="empty">All exercises for this muscle are switched off. Turn some on in the Plan tab.</p>'; }
     // which one: the number in the link, else the first one not finished or skipped
     var idx = parseInt(arg2, 10) - 1, sk = skipped();
@@ -588,7 +620,8 @@
       var st = exStatus(e, t);
       return '<li><a class="ri ' + st.cls + (k === idx ? ' on' : '') + '" href="#/m/' + id + '/' + (k + 1) + '"' + (k === idx ? ' aria-current="step"' : '') + '><span class="rn">' + (st.cls === 'done' ? '✓' : k + 1) + '</span>' + thumbHTML(e, 'rt') + '<span class="rx"><b>' + esc(e.name) + '</b><small>' + st.txt + '</small></span></a></li>';
     }).join('') + '</ol></nav><div class="wk-main">';
-    h += '<p class="wk-pos">Exercise ' + (idx + 1) + ' of ' + exs.length + '</p>';
+    Sess.start();
+    h += '<p class="wk-pos">Exercise ' + (idx + 1) + ' of ' + exs.length + ' · Session <span class="num" id="sess-t">0:00</span></p>';
     h += '<section class="ex" data-ex="' + ex.id + '"><div class="ex-head"><span class="ex-n">' + (i + 1) + '</span><div>' + (i === 0 ? '<span class="badge">Main event</span>' : '') + '<h2>' + esc(ex.name) + '</h2>' +
       '<p class="ex-meta"><b>' + ex.sets + ' rounds of ' + esc(ex.reps) + (ex.timed ? ' seconds' : ' reps') + '</b>, ' + ex.equip.toLowerCase() + '. ' + esc(ex.target) + '</p>' +
       (Store.isSuper(ex.id) && i ? '<p class="ss-tag">Superset: do it right after the exercise above, then rest.</p>' : '') + '<p class="ex-note" data-note-for="' + ex.id + '"' + (Store.note(ex.id) ? '' : ' hidden') + '>Note: ' + esc(Store.note(ex.id)) + '</p></div></div>' +
@@ -604,7 +637,7 @@
   }
   function summaryText(muscle) {
     var logs = Store.logsOn(Store.today()).filter(function (l) { return l.m === muscle; });
-    return logs.length ? logs.length + ' rounds logged, ' + Math.round(Store.volume(logs)).toLocaleString() + ' kg lifted so far.' : 'Nothing logged yet. Your rounds save as you go.';
+    return logs.length ? logs.length + ' rounds logged, ' + Math.round(Store.volume(logs)).toLocaleString() + ' ' + U() + ' lifted so far.' : 'Nothing logged yet. Your rounds save as you go.';
   }
 
   /* =========================================================  SUMMARY  */
@@ -614,24 +647,24 @@
     if (!logs.length) { return '<a class="crumb" href="#/m/' + muscle + '">Back to workout</a><h1>Nothing logged</h1><p class="intro">Log at least one set and your summary appears here.</p>'; }
     var ids = [], all = Store.allLogs();
     logs.forEach(function (l) { if (ids.indexOf(l.e) < 0) { ids.push(l.e); } });
-    var mins = logs.length > 1 ? Math.max(1, Math.round((logs[logs.length - 1].ts - logs[0].ts) / 60000)) : 0;
+    Sess.end(); var mins = Sess.get() && Sess.ms() > 60000 ? Math.round(Sess.ms() / 60000) : (logs.length > 1 ? Math.max(1, Math.round((logs[logs.length - 1].ts - logs[0].ts) / 60000)) : 0);
     var rows = '', beat = 0, compared = 0, prs = [];
     ids.forEach(function (id) {
       var ex = Data.byId[id], ss = Stats.sessions(id, all), cur = ss.filter(function (x) { return x.date === t; })[0], prev = ss.filter(function (x) { return x.date < t; }).pop();
       var line = prev ? Stats.compare(cur, prev) : null;
       if (prev) { compared++; if (line.verdict === 'up') { beat++; } }
       cur.sets.forEach(function (st) { var pr = Stats.prFor(st, exLogs(id)); if (pr) { prs.push({ name: ex ? ex.name : id, text: Stats.PR_TEXT[pr], set: st }); } });
-      rows += '<li><span class="hd">' + esc(ex ? ex.name : id) + '</span><span class="hs num">' + cur.sets.map(function (q) { return q.reps + ' × ' + kgStr(q.kg); }).join(', ') + ' kg</span>' +
+      rows += '<li><span class="hd">' + esc(ex ? ex.name : id) + '</span><span class="hs num">' + cur.sets.map(function (q) { return q.reps + ' × ' + wStr(q.kg); }).join(', ') + ' ' + U() + '</span>' +
         (line ? '<span class="vd ' + line.verdict + '">' + arrow(line.verdict) + VLABEL[line.verdict] + '</span><span class="vtext">' + esc(line.text) + '</span>' : '<span class="vd same">First</span><span class="vtext">First time logged. This is your starting point.</span>') + '</li>';
     });
     var vol = Math.round(Store.volume(logs));
     var h = '<a class="crumb" href="#/m/' + muscle + '">Back to workout</a><h1>' + mName(muscle) + ' done</h1>' +
       '<div class="stats"><div><b class="num">' + logs.length + '</b><span>Sets</span></div><div><b class="num">' + vol.toLocaleString() + '</b><span>Kg lifted</span></div>' + (mins ? '<div><b class="num">' + mins + '</b><span>Minutes</span></div>' : '') + '<div><b class="num">' + Stats.calories(logs, Store.currentKg()) + '</b><span>Kcal (estimate)</span></div></div>';
     if (compared) { h += '<p class="lead" style="margin-top:18px"><b>' + (beat ? 'Won ' + beat + ' of ' + compared + ' bouts against last time.' : 'No wins against last time today. Rest and aim for it next session.') + '</b></p>'; }
-    if (prs.length) { h += '<div class="sec"><h2>Personal records</h2><ul class="hist-list">' + prs.map(function (p) { return '<li><span class="hd">' + esc(p.name) + '</span><span class="hs num">' + p.set.reps + ' × ' + kgStr(p.set.kg) + ' kg</span><span class="prb">PR</span><span class="vtext">' + p.text + '</span></li>'; }).join('') + '</ul></div>'; }
+    if (prs.length) { h += '<div class="sec"><h2>Personal records</h2><ul class="hist-list">' + prs.map(function (p) { return '<li><span class="hd">' + esc(p.name) + '</span><span class="hs num">' + p.set.reps + ' × ' + wStr(p.set.kg) + ' ' + U() + '</span><span class="prb">PR</span><span class="vtext">' + p.text + '</span></li>'; }).join('') + '</ul></div>'; }
     h += '<div class="sec"><h2>Exercises</h2><ul class="hist-list">' + rows + '</ul></div>';
-    summaryText_ = mName(muscle) + ' day, ' + shortDate(t) + ': ' + logs.length + ' sets, ' + vol.toLocaleString() + ' kg lifted' + (mins ? ', about ' + mins + ' min' : '') + ', about ' + Stats.calories(logs, Store.currentKg()) + ' kcal.' +
-      (compared ? ' Won ' + beat + ' of ' + compared + ' bouts against last time.' : '') + (prs.length ? ' PRs: ' + prs.map(function (p) { return p.name + ' (' + kgStr(p.set.kg) + ' kg x ' + p.set.reps + ')'; }).join(', ') + '.' : '');
+    summaryText_ = mName(muscle) + ' day, ' + shortDate(t) + ': ' + logs.length + ' sets, ' + vol.toLocaleString() + ' ' + U() + ' lifted' + (mins ? ', about ' + mins + ' min' : '') + ', about ' + Stats.calories(logs, Store.currentKg()) + ' kcal.' +
+      (compared ? ' Won ' + beat + ' of ' + compared + ' bouts against last time.' : '') + (prs.length ? ' PRs: ' + prs.map(function (p) { return p.name + ' (' + wStr(p.set.kg) + ' ' + U() + ' x ' + p.set.reps + ')'; }).join(', ') + '.' : '');
     return h + '<div class="today-actions"><a class="btn primary" href="#/today">Done</a><button class="link" type="button" data-act="copy-summary">Copy summary</button></div>';
   }
 
@@ -662,7 +695,7 @@
     var logs = Store.allLogs(), list = [];
     Data.EX.forEach(function (ex) { var b = Stats.records(ex.id, logs); if (b) { list.push({ ex: ex, b: b }); } });
     if (!list.length) { return ''; }
-    var row = function (x) { return '<li><span class="hd">' + esc(x.ex.name) + '</span><span class="hs num">' + (x.b.kg > 0 ? kgStr(x.b.kg) + ' kg × ' + x.b.reps : x.b.reps + ' reps') + '</span><span class="vtext">' + shortDate(x.b.d) + '</span></li>'; };
+    var row = function (x) { return '<li><span class="hd">' + esc(x.ex.name) + '</span><span class="hs num">' + (x.b.kg > 0 ? wStr(x.b.kg) + ' ' + U() + ' × ' + x.b.reps : x.b.reps + ' reps') + '</span><span class="vtext">' + shortDate(x.b.d) + '</span></li>'; };
     return '<div class="sec"><h2>Personal records</h2><p class="sub">Your heaviest set for each exercise.</p><ul class="hist-list">' + list.slice(0, 6).map(row).join('') + '</ul>' +
       (list.length > 6 ? '<details class="more-list"><summary>Show all ' + list.length + '</summary><ul class="hist-list">' + list.slice(6).map(row).join('') + '</ul></details>' : '') + '</div>';
   }
@@ -695,9 +728,9 @@
     if (logs.length) {
       var byEx = {}, order = [];
       logs.sort(function (a, b) { return a.ts - b.ts; }).forEach(function (l) { if (!byEx[l.e]) { byEx[l.e] = []; order.push(l.e); } byEx[l.e].push(l); });
-      h += '<p class="muted">' + logs.length + ' sets, ' + Math.round(Store.volume(logs)).toLocaleString() + ' kg lifted.</p><ul>' + order.map(function (id) {
+      h += '<p class="muted">' + logs.length + ' sets, ' + Math.round(Store.volume(logs)).toLocaleString() + ' ' + U() + ' lifted.</p><ul>' + order.map(function (id) {
         var ex = Data.byId[id];
-        return '<li>' + esc(ex ? ex.name : id) + '<small class="num">' + byEx[id].map(function (s) { return s.reps + ' × ' + kgStr(s.kg); }).join(', ') + ' kg</small></li>';
+        return '<li>' + esc(ex ? ex.name : id) + '<small class="num">' + byEx[id].map(function (s) { return s.reps + ' × ' + wStr(s.kg); }).join(', ') + ' ' + U() + '</small></li>';
       }).join('') + '</ul>';
     } else if (inf.kind === 'madeup') { h += '<p class="muted">Planned ' + mList(inf.plannedAll) + ', trained later that week.</p>';
     } else if (inf.kind === 'missed') { h += '<p class="muted">No show. ' + mList(inf.plannedAll) + ' was planned, nothing logged.</p>'; }
@@ -728,20 +761,20 @@
     var t = Store.today(), p = Store.profile(), ws = Store.weights();
     var P = dashParts(t);
     var first = !Store.allLogs().length;
-    var h = '<h1>Home</h1>' + tonightStrip(t) + '<div class="dash over"><section class="d-card d-stats">' + (first ? welcomeHTML(t) : P.stats) + '</section><section class="tape">' + P.tape + '</section><section class="d-card d-week">' + P.week + '</section><section class="d-card d-last">' + P.last + '</section><section class="d-card d-bal">' + P.bal + '</section></div>' + howSection() + recordsSection() + measuresSection() + friendsSection() + '<div class="sec"><h2>Body weight</h2><p class="sub">Goal ' + kgStr(p.goalKg) + ' kg. Weigh in at the same time of day for a clear trend.</p>';
+    var h = '<h1>Home</h1>' + tonightStrip(t) + '<div class="dash over"><section class="d-card d-stats">' + (first ? welcomeHTML(t) : P.stats) + '</section><section class="tape">' + P.tape + '</section><section class="d-card d-week">' + P.week + '</section><section class="d-card d-last">' + P.last + '</section><section class="d-card d-bal">' + P.bal + '</section></div>' + howSection() + recordsSection() + measuresSection() + friendsSection() + '<div class="sec"><h2>Body weight</h2><p class="sub">Goal ' + wStr(p.goalKg) + ' ' + U() + '. Weigh in at the same time of day for a clear trend.</p>';
     if (ws.length >= 2) {
-      h += Charts.line(ws.map(function (w) { return { x: Store.parse(w.d).getTime() / 864e5, y: w.kg, label: longDate(w.d) + ': ' + kgStr(w.kg) + ' kg' }; }),
-        { goal: p.goalKg, unit: ' kg', aria: 'Body weight over time, latest ' + kgStr(ws[ws.length - 1].kg) + ' kilograms, goal ' + kgStr(p.goalKg),
+      h += Charts.line(ws.map(function (w) { return { x: Store.parse(w.d).getTime() / 864e5, y: Stats.toU(w.kg), label: longDate(w.d) + ': ' + wStr(w.kg) + ' ' + U() + '' }; }),
+        { goal: Stats.toU(p.goalKg), unit: ' ' + U() + '', aria: 'Body weight over time, latest ' + wStr(ws[ws.length - 1].kg) + ' ' + (U() === 'lb' ? 'pounds' : 'kilograms') + ', goal ' + wStr(p.goalKg),
           xLabel: function (x) { var d = new Date(x * 864e5); d = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); return d.getDate() + ' ' + MONTHS[d.getMonth()].slice(0, 3); } });
     } else { h += '<p class="empty">Add a second weigh-in and your trend line appears here.</p>'; }
     var tr = Stats.trend(ws, p.goalKg, t);
     if (tr) {
-      var lose = tr.perWeek < 0, pace = kgStr(Math.abs(tr.perWeek)) + ' kg a week ' + (lose ? 'down' : 'up');
-      h += '<p class="trend">Trend: ' + pace + ', about ' + kgStr(tr.nowKg) + ' kg today. ' +
-        (tr.etaDays === 0 ? 'You are at your goal.' : tr.etaDays ? 'At this pace you reach ' + kgStr(p.goalKg) + ' kg around ' + longDate(Store.addDays(t, tr.etaDays)) + '.' : 'You are moving away from your goal weight right now.') + '</p>';
+      var lose = tr.perWeek < 0, pace = wStr(Math.abs(tr.perWeek)) + ' ' + U() + ' a week ' + (lose ? 'down' : 'up');
+      h += '<p class="trend">Trend: ' + pace + ', about ' + wStr(tr.nowKg) + ' ' + U() + ' today. ' +
+        (tr.etaDays === 0 ? 'You are at your goal.' : tr.etaDays ? 'At this pace you reach ' + wStr(p.goalKg) + ' ' + U() + ' around ' + longDate(Store.addDays(t, tr.etaDays)) + '.' : 'You are moving away from your goal weight right now.') + '</p>';
     } else if (ws.length >= 2) { h += '<p class="trend">Three weigh-ins over at least a week show your pace and goal date.</p>'; }
     h += '<form class="row-form" data-form="weight"><div class="fld"><label for="wd">Date</label><input id="wd" class="text-in" type="date" value="' + t + '" max="' + t + '"></div>' +
-      '<div class="fld"><label for="wk">Weight (kg)</label><input id="wk" class="text-in num" type="number" inputmode="decimal" step="0.1" min="20" max="400" value="' + kgStr(Store.currentKg()) + '"></div>' +
+      '<div class="fld"><label for="wk">Weight (' + U() + ')</label><input id="wk" class="text-in num" type="number" inputmode="decimal" step="0.1" min="20" max="900" value="' + wStr(Store.currentKg()) + '"></div>' +
       '<button class="btn primary" type="submit">Save</button></form></div>';
 
     var weeks = [], cur = weekStart(t), i;
@@ -762,15 +795,15 @@
     h += '<div class="fld" style="margin-top:12px"><label for="pe">Exercise</label><select id="pe" class="text-in" data-f="prog">' +
       list.map(function (e) { return '<option value="' + e.id + '"' + (e.id === sel ? ' selected' : '') + '>' + esc(e.name) + '</option>'; }).join('') + '</select></div>';
     var byDay = {};
-    Store.allLogs().filter(function (l) { return l.e === sel; }).forEach(function (l) { var o = byDay[l.d] || (byDay[l.d] = { max: 0, vol: 0 }); o.max = Math.max(o.max, l.kg); o.vol += l.reps * l.kg; });
+    Store.allLogs().filter(function (l) { return l.e === sel; }).forEach(function (l) { var o = byDay[l.d] || (byDay[l.d] = { max: 0, vol: 0 }); o.max = Math.max(o.max, Stats.toU(l.kg)); o.vol += l.reps * Stats.toU(l.kg); });
     var days = Object.keys(byDay).sort();
     var xf = function (x) { var d = new Date(x * 864e5); d = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); return d.getDate() + ' ' + MONTHS[d.getMonth()].slice(0, 3); };
     if (days.length >= 2) {
-      h += '<p class="sub" style="margin-top:14px">Heaviest set (kg)</p>' + Charts.line(days.map(function (d) { return { x: Store.parse(d).getTime() / 864e5, y: byDay[d].max, label: longDate(d) + ': ' + kgStr(byDay[d].max) + ' kg' }; }), { unit: ' kg', aria: 'Heaviest set per session', xLabel: xf });
-      h += '<p class="sub" style="margin-top:14px">Total volume per session (reps × kg)</p>' + Charts.line(days.map(function (d) { return { x: Store.parse(d).getTime() / 864e5, y: Math.round(byDay[d].vol), label: longDate(d) + ': ' + Math.round(byDay[d].vol) + ' kg' }; }), { unit: '', aria: 'Total volume per session', xLabel: xf });
+      h += '<p class="sub" style="margin-top:14px">Heaviest set (' + U() + ')</p>' + Charts.line(days.map(function (d) { return { x: Store.parse(d).getTime() / 864e5, y: byDay[d].max, label: longDate(d) + ': ' + kgStr(byDay[d].max) + ' ' + U() + '' }; }), { unit: ' ' + U() + '', aria: 'Heaviest set per session', xLabel: xf });
+      h += '<p class="sub" style="margin-top:14px">Total volume per session (reps × ' + U() + ')</p>' + Charts.line(days.map(function (d) { return { x: Store.parse(d).getTime() / 864e5, y: Math.round(byDay[d].vol), label: longDate(d) + ': ' + Math.round(byDay[d].vol) + ' ' + U() + '' }; }), { unit: '', aria: 'Total volume per session', xLabel: xf });
     } else {
       var only = byDay[days[0]];
-      h += '<p class="empty">One session so far: heaviest set ' + kgStr(only.max) + ' kg, ' + Math.round(only.vol) + ' kg total volume. Train it again and the chart starts.</p>';
+      h += '<p class="empty">One session so far: heaviest set ' + kgStr(only.max) + ' ' + U() + ', ' + Math.round(only.vol) + ' ' + U() + ' total volume. Train it again and the chart starts.</p>';
     }
     return h + '</div>';
   }
@@ -781,14 +814,14 @@
     var t = document.documentElement.getAttribute('data-theme');
     return t ? t === 'dark' : !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
   }
-  function viewPlan() {
+  function viewPlan(openId) {
     var p = Store.profile();
     var h = '<h1>Plan</h1><p class="intro">Set your week, then pick the exercises you want in each muscle. Barbell and dumbbell moves lead. Switch off anything your gym does not have.</p>' +
       '<details class="sec fold" open><summary><span class="fh"><h2>Your week</h2><small>' + weekSummary() + '</small></span></summary>' + scheduleHTML() + '<p class="lab" style="margin-top:18px"><span>Equipment you have</span></p>' + equipHTML() + '</details>';
     Data.ORDER.forEach(function (id) {
       var m = Data.MUSCLES[id];
       var onN = Data.exercisesFor(id).filter(function (e) { return !Store.isHidden(e.id); }).length, allN = Data.exercisesFor(id).length;
-      h += '<details class="plan-day fold"><summary><span class="fh"><h2>' + m.name + '</h2><small>' + daysText(id) + ' · ' + onN + ' of ' + allN + ' exercises on</small></span></summary>';
+      h += '<details class="plan-day fold" id="pd-' + id + '"' + (openId === id ? ' open' : '') + '><summary><span class="fh"><h2>' + m.name + '</h2><small>' + daysText(id) + ' · ' + onN + ' of ' + allN + ' exercises on</small></span></summary>';
       Data.exercisesFor(id).forEach(function (ex, xi) {
         var off = Store.isHidden(ex.id);
         h += '<div class="plan-item"><div class="plan-ex' + (off ? ' off' : '') + '"><label><input type="checkbox" data-f="inc" data-id="' + ex.id + '"' + (off ? '' : ' checked') + '><span class="nm">' + esc(ex.name) + '</span></label>' +
@@ -806,9 +839,11 @@
       '<div class="fld"><label for="cx-s">Sets</label><input id="cx-s" class="text-in num" type="number" min="1" max="10" value="3"></div>' +
       '<div class="fld"><label for="cx-r">Reps</label><input id="cx-r" class="text-in" maxlength="8" value="10-12"></div>' +
       '<button class="btn primary" type="submit">Add</button></form></details>';
-    h += '<details class="sec fold"><summary><span class="fh"><h2>Your goal</h2></span></summary><div class="row-form"><div class="fld"><label for="sk">Starting weight (kg)</label><input id="sk" class="text-in num" type="number" inputmode="decimal" step="0.1" value="' + kgStr(p.startKg) + '"></div>' +
-      '<div class="fld"><label for="gk">Goal weight (kg)</label><input id="gk" class="text-in num" type="number" inputmode="decimal" step="0.1" value="' + kgStr(p.goalKg) + '"></div>' +
+    h += '<details class="sec fold"><summary><span class="fh"><h2>Your goal</h2></span></summary><div class="row-form"><div class="fld"><label for="sk">Starting weight (' + U() + ')</label><input id="sk" class="text-in num" type="number" inputmode="decimal" step="0.1" value="' + wStr(p.startKg) + '"></div>' +
+      '<div class="fld"><label for="gk">Goal weight (' + U() + ')</label><input id="gk" class="text-in num" type="number" inputmode="decimal" step="0.1" value="' + wStr(p.goalKg) + '"></div>' +
       '<button class="btn primary" type="button" data-act="save-goal">Save</button></div></details>';
+    h += '<details class="sec fold"><summary><span class="fh"><h2>Workout settings</h2><small>Units, screen</small></span></summary><p class="lab" style="margin-top:6px"><span>Weight unit</span></p>' + unitChips() +
+      '<div class="switch" style="margin-top:14px"><span id="aw-l">Keep the screen on during a workout</span><button type="button" role="switch" aria-checked="' + (localStorage.getItem('gymtracker.awake') !== 'off') + '" aria-labelledby="aw-l" data-act="awake"></button></div></details>';
     var rc = Rest.cfg();
     h += '<details class="sec fold"><summary><span class="fh"><h2>Rest timer</h2></span></summary><div class="switch"><span id="rt-l">Start a timer after each set</span><button type="button" role="switch" aria-checked="' + rc.on + '" aria-labelledby="rt-l" data-act="rest-on"></button></div>' +
       '<div class="modes four" role="group" aria-label="Rest length in seconds" style="margin-top:8px">' + [60, 90, 120, 180].map(function (v) { return '<button type="button" class="chip" data-act="rest-sec" data-v="' + v + '" aria-pressed="' + (rc.sec === v) + '">' + v + ' s</button>'; }).join('') + '</div></details>';
@@ -942,10 +977,13 @@
     if (login.res === 'denied') { login.step = 'form'; render(true); var e2 = document.getElementById('login-err'); if (e2) { e2.textContent = 'The cloud refused that username. Try another one.'; } return; }
     startMemo(login.name);   // offline, slow or error: try the check again
   }
+  function unitChips() {
+    return '<div class="modes" role="group" aria-label="Weight unit" style="margin-top:8px;grid-template-columns:repeat(2,1fr)">' + ['kg', 'lb'].map(function (u) { return '<button type="button" class="chip" data-act="unit" data-v="' + u + '" aria-pressed="' + (U() === u) + '">' + (u === 'kg' ? 'Kilograms (kg)' : 'Pounds (lb)') + '</button>'; }).join('') + '</div>';
+  }
   function viewSetup() {
     return '<h1>Welcome, ' + esc(Store.user()) + '</h1><p class="intro">Two numbers to start. You can change them later in the Plan tab.</p>' +
-      '<form data-form="setup" novalidate><div class="row-form"><div class="fld"><label for="su-now">Current weight (kg)</label><input id="su-now" class="text-in num" type="number" inputmode="decimal" step="0.1" min="20" max="400"></div>' +
-      '<div class="fld"><label for="su-goal">Goal weight (kg)</label><input id="su-goal" class="text-in num" type="number" inputmode="decimal" step="0.1" min="20" max="400"></div></div>' +
+      '<p class="lab" style="margin-top:18px"><span>Units</span></p>' + unitChips() + '<form data-form="setup" novalidate><div class="row-form" style="margin-top:12px"><div class="fld"><label for="su-now">Current weight (' + U() + ')</label><input id="su-now" class="text-in num" type="number" inputmode="decimal" step="0.1" min="20" max="900"></div>' +
+      '<div class="fld"><label for="su-goal">Goal weight (' + U() + ')</label><input id="su-goal" class="text-in num" type="number" inputmode="decimal" step="0.1" min="20" max="900"></div></div>' +
       '<p class="form-err" id="setup-err" role="alert"></p><button class="btn primary block" type="submit" style="margin-top:14px">Start</button></form>';
   }
 
@@ -967,7 +1005,8 @@
       if (on) { a.setAttribute('aria-current', 'page'); } else { a.removeAttribute('aria-current'); }
     });
     view.querySelectorAll('.muscles').forEach(function (box) { showMuscle(box, box.closest('details') ? Data.byId[box.closest('details').dataset.ex].mus.view : 'front'); });
-    startQuotes(); var meEl = document.getElementById('me'); if (meEl) { meEl.textContent = Store.user() || ''; }
+    if (r.name === 'plan' && r.arg) { var pd = document.getElementById('pd-' + r.arg); if (pd) { pd.scrollIntoView(); } }
+    startSessTick(); keepAwake(r.name === 'm'); startQuotes(); var meEl = document.getElementById('me'); if (meEl) { meEl.textContent = Store.user() || ''; }
     if (!keepScroll) { window.scrollTo(0, 0); }
     var title = { today: 'Today', pick: 'Choose a muscle', calendar: 'Calendar', home: 'Home', plan: 'Plan', m: r.arg && Data.MUSCLES[r.arg] ? Data.MUSCLES[r.arg].name : 'Workout', summary: 'Summary' }[r.name];
     document.title = gate ? 'Gym Workout Tracker' : title + ' | Gym Workout Tracker';
@@ -1001,7 +1040,7 @@
     if (act !== 'menu' && act !== 'kgset') { closeMenus(); }
     switch (act) {
       case 'rep+': case 'rep-': dr.reps = Math.max(1, (num(dr.reps) || 0) + (act === 'rep+' ? 1 : -1)); refreshField(exId); break;
-      case 'kg+': case 'kg-': dr.kg = Math.max(0, Math.round(((num(dr.kg) || 0) + (act === 'kg+' ? 0.5 : -0.5)) * 10) / 10); refreshField(exId); break;
+      case 'kg+': case 'kg-': dr.kg = Math.max(0, Stats.fromU(Math.round((Stats.toU(num(dr.kg) || 0) + (act === 'kg+' ? 1 : -1) * (U() === 'lb' ? 1 : 0.5)) * 10) / 10)); refreshField(exId); break;
       case 'kgset': dr.kg = num(el.dataset.v); closeMenus(); refreshField(exId); break;
       case 'menu':
         var menu = secEl.querySelector('.lb-menu'), open = menu.hidden;
@@ -1012,7 +1051,7 @@
         var wasLast = Store.lastSession(exId, Store.today());
         var reps = num(dr.reps), kg = num(dr.kg), ex = Data.byId[exId];
         if (!(reps >= 1) || Math.floor(reps) !== reps) { toast('Enter the reps first'); break; }
-        if (isNaN(kg) || kg < 0 || (kg === 0 && ex.equip !== 'Bodyweight')) { toast(ex.equip === 'Barbell' ? 'Pick a weight first. An empty bar is 20 kg.' : 'Pick a weight first. Start light.'); break; }
+        if (isNaN(kg) || kg < 0 || (kg === 0 && ex.equip !== 'Bodyweight')) { toast(ex.equip === 'Barbell' ? 'Pick a weight first. An empty bar is ' + BAR_NAME() + '.' : 'Pick a weight first. Start light.'); break; }
         Store.addSet(Store.today(), ex.muscle, exId, reps, kg);
         var doneSets = Store.setsFor(Store.today(), exId), mine = doneSets[doneSets.length - 1], pr = Stats.prFor(mine, exLogs(exId));
         toast('Round ' + doneSets.length + ' logged' + (pr ? '. ' + Stats.PR_TEXT[pr] + '!' : ''));
@@ -1034,6 +1073,8 @@
         else if (navigator.clipboard) { navigator.clipboard.writeText(rt + ': ' + rbody).then(function () { toast('Copied'); }, function () { toast('Could not copy'); }); }
         break;
       case 'quote': nextQuote(); startQuotes(); break;
+      case 'awake': var aw = el.getAttribute('aria-checked') !== 'true'; try { localStorage.setItem('gymtracker.awake', aw ? 'on' : 'off'); } catch (err) {} el.setAttribute('aria-checked', String(aw)); break;
+      case 'unit': try { localStorage.setItem('gymtracker.unit', el.dataset.v); } catch (err) {} Stats.setUnit(el.dataset.v); draft = {}; render(true); break;
       case 'wk-skip':
         var sks = skipped(); if (sks.indexOf(el.dataset.id) < 0) { sks.push(el.dataset.id); setSkipped(sks); }
         toast('Skipped. You can come back to it from the list.'); location.hash = el.dataset.to ? '#/m/' + el.dataset.to : '#/summary/' + (Data.byId[el.dataset.id] || {}).muscle; break;
@@ -1076,15 +1117,15 @@
       case 'warm':
         var wp = secEl.querySelector(".warmup"); wp.hidden = !wp.hidden;
         if (!wp.hidden) {
-          var wk = num(dr_kg(secEl)), ramp = Stats.warmup(wk);
-          wp.innerHTML = ramp.length ? '<p class="pl-text"><b>Warm-up for ' + kgStr(wk) + ' kg:</b> ' + ramp.map(function (r) { return r.reps + ' × ' + kgStr(r.kg) + ' kg'; }).join(', ') + '. Rest about 60 seconds between them, then start your working sets. Warm-ups are not logged.</p>' : '<p class="pl-text">Set the kg for your first working set above and the warm-up ramp appears here. Too light to need one under 10 kg.</p>';
+          var wk = Stats.fromU(num(dr_kg(secEl))), ramp = Stats.warmup(wk);
+          wp.innerHTML = ramp.length ? '<p class="pl-text"><b>Warm-up for ' + wStr(wk) + ' ' + U() + ':</b> ' + ramp.map(function (r) { return r.reps + ' × ' + wStr(r.kg) + ' ' + U() + ''; }).join(', ') + '. Rest about 60 seconds between them, then start your working sets. Warm-ups are not logged.</p>' : '<p class="pl-text">Set the kg for your first working set above and the warm-up ramp appears here. Too light to need one under 10 kg.</p>';
         } break;
       case 'set-save':
-        var rowEl = el.closest('li'), nr = num(rowEl.querySelector('[data-f="er"]').value), nk = num(rowEl.querySelector('[data-f="ek"]').value);
+        var rowEl = el.closest('li'), nr = num(rowEl.querySelector('[data-f="er"]').value), nk = Stats.fromU(num(rowEl.querySelector('[data-f="ek"]').value));
         if (!(nr >= 1 && nr <= 100) || !(nk >= 0 && nk <= 500)) { toast('Reps 1 to 100, kg 0 to 500'); break; }
         Store.updateSet(el.dataset.id, nr, nk); toast('Round updated'); render(true); break;
       case 'set-del':
-        if (window.confirm('Delete this round?')) { Store.removeSet(el.dataset.id); toast('Round deleted'); render(true); } break;
+        var did = el.dataset.id; Store.removeSet(did); render(true); toast('Round deleted', { label: 'Undo', fn: function () { Store.restoreSet(did); render(true); } }); break;
       case 'plates':
         var panel = secEl.querySelector('.plates'); panel.hidden = !panel.hidden; if (!panel.hidden) { panel.innerHTML = platesHTML(exId); } break;
       case 'bar':
@@ -1101,7 +1142,7 @@
       case 'del-custom':
         if (window.confirm('Delete this exercise? Sets you already logged stay in your history.')) { Store.removeCustom(el.dataset.id); toast('Exercise deleted'); render(true); } break;
       case 'rm':
-        Store.removeSet(el.dataset.id); toast('Round removed'); refreshLogger(exId); break;
+        var rid = el.dataset.id; Store.removeSet(rid); refreshLogger(exId); toast('Round removed', { label: 'Undo', fn: function () { Store.restoreSet(rid); refreshLogger(exId); } }); break;
       case 'finish': toast('Workout saved'); break;
       case 'day': calState.sel = el.dataset.d; render(true); break;
       case 'cal-prev': case 'cal-next':
@@ -1110,7 +1151,7 @@
         render(true); break;
       case 'save-goal':
         var sk = num(document.getElementById('sk').value), gk = num(document.getElementById('gk').value);
-        if (!(sk > 20) || !(gk > 20)) { toast('Enter both weights in kg'); break; }
+        sk = Stats.fromU(sk); gk = Stats.fromU(gk); if (!(sk > 20) || !(gk > 20)) { toast('Enter both weights in ' + U()); break; }
         Store.setProfile({ startKg: sk, goalKg: gk }); toast('Goal saved'); break;
       case 'theme':
         var dark = !isDark(); document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light'); Store.setTheme(dark ? 'dark' : 'light');
@@ -1129,7 +1170,7 @@
   function refreshField(exId) {
     var dr = draft[exId], sec = view.querySelector('section.ex[data-ex="' + exId + '"]');
     sec.querySelector('[data-f="reps"]').value = dr.reps;
-    sec.querySelector('[data-f="kg"]').value = kgStr(dr.kg);
+    sec.querySelector('[data-f="kg"]').value = wStr(dr.kg);
     sec.querySelectorAll('.chip[data-v]').forEach(function (c) { c.setAttribute('aria-pressed', String(num(c.dataset.v) === dr.kg)); });
     sec.querySelectorAll('.lb-menu li').forEach(function (c) { c.setAttribute('aria-selected', String(num(c.dataset.v) === dr.kg)); });
     var pl = sec.querySelector('.plates'); if (pl && !pl.hidden) { pl.innerHTML = platesHTML(exId); }
@@ -1140,7 +1181,7 @@
     if (e.target.dataset && e.target.dataset.f === 'lib') { clearTimeout(libTimer); var qv = e.target.value; libTimer = setTimeout(function () { libSearch(qv); }, 350); return; }
     var f = e.target.dataset.f, secEl = e.target.closest('section.ex');
     if ((f === 'reps' || f === 'kg') && secEl) {
-      var dr = draft[secEl.dataset.ex]; dr[f] = e.target.value === '' ? NaN : num(e.target.value);
+      var dr = draft[secEl.dataset.ex]; dr[f] = e.target.value === '' ? NaN : (f === 'kg' ? Stats.fromU(num(e.target.value)) : num(e.target.value));
       secEl.querySelectorAll('.chip[data-v]').forEach(function (c) { c.setAttribute('aria-pressed', String(num(c.dataset.v) === dr.kg)); });
     }
   });
@@ -1168,8 +1209,8 @@
       startMemo(name);
     } else if (f === 'setup') {
       e.preventDefault();
-      var now = num(document.getElementById('su-now').value), goal = num(document.getElementById('su-goal').value);
-      if (!(now >= 20 && now <= 400) || !(goal >= 20 && goal <= 400)) { document.getElementById('setup-err').textContent = 'Enter both weights in kg.'; return; }
+      var now = Stats.fromU(num(document.getElementById('su-now').value)), goal = Stats.fromU(num(document.getElementById('su-goal').value));
+      if (!(now >= 20 && now <= 400) || !(goal >= 20 && goal <= 400)) { document.getElementById('setup-err').textContent = 'Enter both weights in ' + U() + '.'; return; }
       Store.setProfile({ startKg: now, goalKg: goal }); Store.addWeight(Store.today(), now); onboardWeek = true; location.hash = '#/'; render();
     } else if (f === 'measure') {
       var md = document.getElementById('ms-d').value, mv = { d: md };
@@ -1189,8 +1230,8 @@
       toast('Exercise added'); render(true);
     } else if (f === 'weight') {
       e.preventDefault();
-      var d = document.getElementById('wd').value, kg = num(document.getElementById('wk').value);
-      if (!d || !(kg >= 20 && kg <= 400)) { toast('Enter a date and a weight in kg'); return; }
+      var d = document.getElementById('wd').value, kg = Stats.fromU(num(document.getElementById('wk').value));
+      if (!d || !(kg >= 20 && kg <= 400)) { toast('Enter a date and a weight in ' + U()); return; }
       Store.addWeight(d, kg); toast('Weight saved'); render(true);
     }
   });

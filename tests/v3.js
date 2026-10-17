@@ -140,5 +140,20 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
   ok(!(await p.locator('.ticker').textContent()).includes('night') && (await p.locator('.ticker').textContent()).includes('day'), 'wording says day, not night');
   await p.context().close();
 
+  // 12. pounds
+  p = await open(390, 844, FRI, '#/m/arms', { logs: [], weights, profile });
+  await p.evaluate(() => { localStorage.setItem('gymtracker.unit', 'lb'); }); await p.reload(); await p.waitForTimeout(300);
+  ok((await p.locator('.kg-pick .chip').allTextContents()).slice(0, 3).join() === '5,10,15' && (await p.locator('.fld label').nth(1).textContent()) === 'Lb', 'pounds: quick weights and label switch to lb');
+  await p.fill('[data-f="kg"]', '135'); await p.locator('section.ex [data-act="log"]').click(); await p.waitForTimeout(250);
+  ok(Math.abs((await p.evaluate(() => Store.allLogs()[0].kg)) - 61.2349) < 0.001 && (await p.locator('.sets .sv').textContent()).includes('135 lb'), 'pounds: 135 lb is stored as 61.23 kg and shown back as 135 lb');
+  await p.context().close();
+
+  // 13. edit exercises from the muscle picker
+  p = await open(390, 844, FRI, '#/pick', { logs: [], weights, profile });
+  ok((await p.locator('.pick-edit').count()) === 5 && (await p.locator('.pick-edit').first().textContent()).includes('Edit 5 exercises'), 'each muscle on the picker has an Edit exercises link');
+  await p.locator('.pick-edit').nth(2).click(); await p.waitForTimeout(300);
+  ok(await p.locator('#pd-legs').evaluate(e => e.open) && !(await p.locator('#pd-chest').evaluate(e => e.open)), 'the link opens Plan with that muscle expanded');
+  await p.context().close();
+
   console.log(fails.length ? '\nFAILURES:\n' + fails.join('\n') : '\nv3 UI tests OK'); await b.close(); process.exit(fails.length ? 1 : 0);
 })();

@@ -6,7 +6,7 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
   const b = await chromium.launch({ channel: 'chrome', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] }), cloud = fakeCloud(null), fails = [];
   const ok = (c, m) => { if (!c) fails.push(m); console.log((c ? 'PASS ' : 'FAIL ') + m); };
   async function device() {
-    const ctx = await b.newContext({ viewport: { width: 390, height: 844 } }); await cloud.install(ctx);
+    const ctx = await b.newContext({ viewport: { width: 390, height: 844 } }); await cloud.install(ctx); await ctx.addInitScript(() => { if (!localStorage.getItem('gymtracker.unit')) localStorage.setItem('gymtracker.unit', 'kg'); });
     const p = await ctx.newPage(); p.on('pageerror', e => fails.push('PAGEERROR ' + e.message));
     p.on('console', m => { if (m.type() === 'error' && !/fonts\.g|403|404|net::ERR/.test(m.text())) fails.push('console ' + m.text()); });
     return { ctx, p };

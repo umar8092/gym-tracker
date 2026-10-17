@@ -86,4 +86,12 @@ t('record: counts wins, losses and draws between consecutive sessions', () => {
   assert.deepStrictEqual(S.record(logs), { w: 1, l: 1, d: 1 });
   assert.deepStrictEqual(S.record([]), { w: 0, l: 0, d: 0 });
 });
+t('pounds: shown in lb, kept in kg, progression adds 5 lb', () => {
+  S.setUnit('lb');
+  assert.strictEqual(S.wText(100), '220.5'); assert.ok(Math.abs(S.fromU(S.toU(60)) - 60) < 1e-9);
+  assert.strictEqual(S.setDelta({ kg: 45.359, reps: 5 }, { kg: 40.8233, reps: 5 }).text, '+10 lb');
+  const w = S.warmup(S.fromU(135)); assert.deepStrictEqual(w.map(x => Math.round(S.toU(x.kg))), [70, 95, 115]);
+  assert.ok(Math.abs(S.toU(S.target('8-10', S.summarize('d', [L('d', 'a', 10, 60), L('d', 'a', 10, 60), L('d', 'a', 10, 60)])).kg) - (S.toU(60) + 5)) < 0.01);
+  S.setUnit('kg'); assert.strictEqual(S.wText(100), '100');
+});
 console.log(`\n${n} stats tests OK`);

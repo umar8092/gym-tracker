@@ -4,7 +4,7 @@
    - pages, scripts, styles: network first but with a short deadline, then the saved copy (so updates arrive and a bad connection does not hang)
    - fonts, images, models, 3D libraries, icons: saved copy first (they only change when the file name or version does)
    Bump VERSION whenever any of these files change. */
-var VERSION = 'gym-v25';       // code: pages, scripts, styles. Bump with every release.
+var VERSION = 'gym-v26';       // code: pages, scripts, styles. Bump with every release.
 var ASSETS = 'gym-assets-1';   // fonts, images, models, 3D libraries. Bump only when one of those files changes (so users do not re-download the 3D files on every release).
 var SHELL = ['./', 'index.html', 'css/app.css', 'css/fonts.css', 'js/data.js', 'js/store.js', 'js/sync.js', 'js/stats.js', 'js/charts.js', 'js/machines.js', 'js/app.js',
   'fonts/Anton-400.woff2', 'fonts/Archivo-600.woff2', 'fonts/Archivo-800.woff2', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon.svg', 'icons/favicon-32.png'];
