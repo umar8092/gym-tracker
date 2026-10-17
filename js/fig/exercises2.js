@@ -230,18 +230,18 @@ export function makeMore(H) {
 
   // Overhead dumbbell triceps extension (both hands on one dumbbell). t = 0 forearms folded behind the head, t = 1 arms extended overhead.
   out['overhead-triceps-extension'] = (() => {
-    const keys = { U: [U3(0.07, 1, -0.06), U3(-0.1, 1, -0.04), U3(-0.22, 1, -0.02)], F: [U3(0, -0.45, -0.89), U3(-0.2, 0.3, -0.95), U3(-0.22, 1, -0.05)], N: [U3(0, 0.9, 0.4), U3(0, 0.3, 0.95), U3(0, -0.05, 1)] };
+    // one-arm version: the left hand grips the handle (same grip as the curls and presses); the right arm hangs relaxed
+    const keys = { U: [U3(0.04, 1, -0.06), U3(0.04, 1, -0.04), U3(0.04, 1, -0.02)], F: [U3(0, -0.45, -0.89), U3(0, 0.3, -0.95), U3(0, 1, -0.03)], N: [U3(0, 0.89, -0.45), U3(0, 0.6, 0.8), U3(0, 0.1, 1)] };
     return {
       camera: cameraFor({ ty: 1.35, dist: 3.4, yaw: 75, pitch: 8 }),
-      setup(ctx) { const db = makeDumbbell(0.07); ctx.scene.add(db); return { ctx, db }; },
+      setup(ctx) { const db = makeDumbbell(); ctx.scene.add(db); return { ctx, db }; },
       pose(st, t) {
         const rig = st.ctx.rig; rig.reset(); neckLevel(rig, 0);
-        const u = keyDir(keys.U, t), f = keyDir(keys.F, t), n = keyDir(keys.N, t), fr = {};
-        // both hands cup under the top plate: fingers point inward toward each other, palms up
-        for (const s of ['l', 'r']) { const m = s === 'l' ? x => x : mir; rig.aim('upperarm_' + s, m(u)); rig.aim('lowerarm_' + s, m(f)); fr[s] = rig.handFrame(s, m(f).add(new V3(s === 'l' ? -0.9 : 0.9, 0, 0)), new V3(0, 1, 0), 0.7); }
-        const mid = rig.wp('hand_l').clone().add(rig.wp('hand_r')).multiplyScalar(0.5).add(new V3(0, 0.02, 0));
-        st.db.position.copy(mid).add(new V3(0, -0.085, 0)); st.db.rotation.set(0, 0, Math.PI / 2);   // dumbbell hangs from the cupped hands
-        return { grips: [mid.clone()] };
+        const u = keyDir(keys.U, t), f = keyDir(keys.F, t), n = keyDir(keys.N, t);
+        const fr = rig.armFK('l', u, f, n, 1);
+        placeInHand(rig, st.db, 'l', fr);
+        rig.armFK('r', mir(U3(0.075, -1, 0.02)), mir(U3(0, -1, 0.08)), mir(U3(0, 0, 1)), 0.3);
+        return { grips: [st.db.position.clone()] };
       }
     };
   })();
