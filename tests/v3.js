@@ -115,5 +115,15 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
   ok(JSON.parse(await p.evaluate(() => localStorage.getItem('gymtracker.v2.umar'))).schedule['1'].length === 3, 'the schedule is saved with the account');
   await p.context().close();
 
+  // 10. several muscles a day: no layout trouble, halftime state, hop to the next muscle
+  p = await open(360, 740, FRI, '#/today', { logs: [lg(FRI, 0, 'barbell-bench-press', 'chest', 10, 60)], weights, profile, schedule: { 5: ['chest', 'back'], 1: ['legs', 'arms', 'shoulders'], 2: ['chest'], 3: ['back'], 4: ['legs'], 6: ['arms'], 0: ['shoulders'] } });
+  ok((await p.locator('.main-event .badge').textContent()).trim() === 'Halftime' && (await p.locator('.main-event').textContent()).includes('Back still to go'), 'a two-muscle day with one muscle done shows Halftime and what is left');
+  ok((await p.locator('a.btn.primary', { hasText: 'Start back' }).getAttribute('href')) === '#/m/back', 'there is a button straight to the second muscle');
+  const wk = await p.evaluate(() => { const out = []; document.querySelectorAll('.wd').forEach(e => { if (e.querySelector('.mn').scrollWidth > e.clientWidth + 1 || e.querySelector('.st').scrollWidth > e.clientWidth + 1) out.push(e.textContent.trim()); }); return out.concat(document.documentElement.scrollWidth > 361 ? ['page scrolls sideways'] : []); });
+  ok(wk.length === 0 && (await p.locator('.fweek .wd').count()) === 7, 'seven fight-week tiles with several muscles fit on a 360 px phone: ' + (wk.join(',') || 'ok'));
+  await p.goto(URL + '#/m/chest/5'); await p.waitForTimeout(200);
+  ok((await p.locator('[data-act="wk-next"]').textContent()).includes('Next: Back'), 'last exercise of the first muscle offers the second muscle');
+  await p.context().close();
+
   console.log(fails.length ? '\nFAILURES:\n' + fails.join('\n') : '\nv3 UI tests OK'); await b.close(); process.exit(fails.length ? 1 : 0);
 })();

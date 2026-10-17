@@ -627,3 +627,20 @@ main[data-r="summary"] .stats { grid-template-columns: repeat(4, minmax(0, 1fr))
 .switch button::after { top: 5px; width: 28px; height: 28px; }
 .switch button[aria-checked="true"]::after { transform: translateX(24px); }
 .edit-day summary { min-height: 44px; }
+
+/* fight week tiles with several muscles: one short name per line */
+.wd .mn > span { display: block; }
+.wd.short .mn { font-size: clamp(13px, 4cqw, 18px); }
+.wd.short { min-height: 92px; }
+/* forms on phones: a two-column grid so fields never overlap */
+.row-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: end; }
+.row-form .fld { min-width: 0; }
+.row-form .btn { grid-column: 1 / -1; width: 100%; }
+.row-form .text-in, .fld .text-in { min-width: 0; max-width: 100%; }
+input[type="date"].text-in { min-width: 0; -webkit-appearance: none; appearance: none; }
+@media (min-width: 640px) { .row-form { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); } .row-form .btn { grid-column: auto; width: auto; } }
+.fld label { overflow-wrap: anywhere; }
+.row-form .fld:has(#cx-n), .row-form .fld:has(#fr-n), .row-form .fld:has(#cx-r) { grid-column: 1 / -1; }
+@media (min-width: 640px) { .row-form .fld:has(#cx-n), .row-form .fld:has(#fr-n), .row-form .fld:has(#cx-r) { grid-column: auto; } }
+input[type="date"].text-in { font-size: 15px; padding-left: 10px; padding-right: 6px; }
+input[type="date"].text-in::-webkit-calendar-picker-indicator { margin-left: 2px; padding: 0; }

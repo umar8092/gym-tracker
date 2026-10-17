@@ -14,6 +14,8 @@
   function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
   function kgStr(n) { return Math.abs(n - Math.round(n)) < 0.001 ? String(Math.round(n)) : String(Math.round(n * 10) / 10); }
   function longDate(s) { var d = Store.parse(s); return DAYS[d.getDay()] + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()]; }
+  function mShort(id) { return mName(id).slice(0, 3); }
+  function mList(a) { return a.map(mName).join(' + '); }
   function mName(id) { return Data.MUSCLES[id] ? Data.MUSCLES[id].name : id; }
   function toast(msg) {
     toastEl.textContent = msg; toastEl.classList.add('on');
@@ -194,7 +196,7 @@
   function doneRow(ex, i, t, muscle) {
     var ss = Stats.sessions(ex.id, exLogs(ex.id)), cur = ss.filter(function (x) { return x.date === t; })[0], prev = ss.filter(function (x) { return x.date < t; }).pop();
     var c = prev ? Stats.compare(cur, prev).verdict : '', r = !prev ? { cls: 'x', txt: 'Debut' } : c === 'up' ? { cls: 'w', txt: 'Won' } : c === 'down' ? { cls: 'l', txt: 'Lost' } : c === 'mixed' ? { cls: 'd', txt: 'Split' } : { cls: 'd', txt: 'Draw' };
-    return '<a class="bout" href="#/m/' + muscle + '"><span class="n">' + (i + 1) + '</span>' + thumbHTML(ex) + '<span><b class="nm">' + esc(ex.name) + '</b><small>' + cur.n + ' rounds today</small></span><span class="lt">Top round<s>' + setText(bestSet(cur.sets)) + '</s></span><span class="res ' + r.cls + '">' + r.txt + '</span></a>';
+    return '<a class="bout" href="#/m/' + muscle + '"><span class="n">' + (i + 1) + '</span>' + thumbHTML(ex) + '<span><b class="nm">' + esc(ex.name) + '</b><small>' + cur.n + (cur.n === 1 ? ' round' : ' rounds') + ' today</small></span><span class="lt">Top round<s>' + setText(bestSet(cur.sets)) + '</s></span><span class="res ' + r.cls + '">' + r.txt + '</span></a>';
   }
   function nextCard(t) {
     for (var i = 1; i <= 7; i++) { var ds = Store.addDays(t, i), m = Data.planFor(Store.parse(ds).getDay()); if (m) { return { date: ds, muscle: m }; } }
@@ -212,14 +214,19 @@
       '<div class="goal-bar" role="img" aria-label="' + Math.round(pct * 100) + ' percent of the way to your goal weight"><i style="width:' + Math.round(pct * 100) + '%"></i></div><p style="margin-top:8px"><a class="link" href="#/">Log weight</a></p>';
   }
   function weekHTML(t) {
-    var ws = weekStart(t), cells = '', i, n = 0;
+    var ws = weekStart(t), cells = '', i, n = 0, tiles = [];
     for (i = 0; i < 7; i++) {
       var ds = Store.addDays(ws, i), inf = Store.dayInfo(ds), pm = inf.planned;
       if (!inf.plannedAll.length && !inf.trained.length) { continue; }   // rest days are left out of the strip
       n++;
       var label = inf.kind === 'done' ? 'Done' : inf.kind === 'missed' ? 'No show' : inf.kind === 'madeup' ? 'Made up' : inf.kind === 'today' ? 'Tonight' : inf.kind === 'upcoming' ? 'Planned' : '';
-      cells += '<a class="wd ' + inf.kind + '" href="#/calendar/' + ds + '"><span class="dn">' + DAYS[(i + 1) % 7].slice(0, 3) + '</span><span class="mn">' + (inf.trained.length ? inf.trained : inf.plannedAll).map(mName).join(' + ') + '</span><span class="st">' + (label || '&nbsp;') + '</span></a>';
+      var ms = inf.trained.length ? inf.trained : inf.plannedAll;
+      tiles.push({ ds: ds, i: i, kind: inf.kind, ms: ms, label: label });
     }
+    var short = tiles.length >= 6 || tiles.some(function (x) { return x.ms.length > 1; });   // many tiles or several muscles a day: three-letter names, one per line
+    tiles.forEach(function (x) {
+      cells += '<a class="wd ' + x.kind + (short ? ' short' : '') + '" href="#/calendar/' + x.ds + '" aria-label="' + DAYS[(x.i + 1) % 7] + ': ' + mList(x.ms) + (x.label ? ', ' + x.label : '') + '"><span class="dn">' + DAYS[(x.i + 1) % 7].slice(0, 3) + '</span><span class="mn">' + x.ms.map(function (m) { return '<span>' + (short ? mShort(m) : mName(m)) + '</span>'; }).join('') + '</span><span class="st">' + ((short ? ({ Done: 'Done', 'No show': 'Miss', 'Made up': 'Made', Tonight: 'Now', Planned: '' })[x.label] : x.label) || '&nbsp;') + '</span></a>';
+    });
     return '<div class="week" style="grid-template-columns:repeat(' + Math.max(n, 1) + ',minmax(0,1fr))" aria-label="This week">' + (cells || '<p class="muted">No training days in your plan. Set your week in the Plan tab.</p>') + '</div>';
   }
 
@@ -229,9 +236,10 @@
     var main = '', under = '', ticker = '<b>' + longDate(t) + '</b>', howto = '<details class="howto"><summary>How a night works</summary><ol><li>Warm up with 1 or 2 light rounds of your first exercise.</li><li>Log each round right after you finish it: reps, then kg.</li><li>Rest 60 to 90 seconds. Pick a weight where your last rep looks like your first.</li><li>Open Form guide on any exercise to rotate the 3D figure and check your position.</li><li>Tap Finish workout to see how you did against last time.</li></ol></details>';
     if (info.kind === 'done') {
       var logs = Store.logsOn(t), names = info.trained.map(mName).join(' and '), rowsN = 0;
-      ticker += '<span>' + esc(names) + ' night</span><span>Fight over</span>';
-      main = '<div class="main-event noimg"><div class="me-l"><span class="badge red">Fight over</span><h1>' + esc(names) + ' done</h1><p class="vs">' + logs.length + (logs.length === 1 ? ' round' : ' rounds') + ' · ' + Math.round(Store.volume(logs)).toLocaleString() + ' kg lifted · about ' + Stats.calories(logs, cur) + ' kcal (estimate)</p>' +
-        '<p class="done-note">Nice work.</p><div class="today-actions"><a class="btn primary" href="#/m/' + info.trained[0] + '">Add more rounds</a><a class="link" href="#/summary/' + info.trained[0] + '">See today\'s summary</a><a class="link" href="#/pick">Train another muscle</a></div></div></div>';
+      ticker += '<span>' + esc(names) + ' night</span><span>' + (plans.filter(function (m) { return info.trained.indexOf(m) < 0; }).length ? 'Halftime' : 'Fight over') + '</span>';
+      var left = plans.filter(function (m) { return info.trained.indexOf(m) < 0; });
+      main = '<div class="main-event noimg"><div class="me-l"><span class="badge red">' + (left.length ? 'Halftime' : 'Fight over') + '</span><h1>' + esc(names) + ' done</h1><p class="vs">' + logs.length + (logs.length === 1 ? ' round' : ' rounds') + ' · ' + Math.round(Store.volume(logs)).toLocaleString() + ' kg lifted · about ' + Stats.calories(logs, cur) + ' kcal (estimate)</p>' +
+        '<p class="done-note">' + (left.length ? mList(left) + ' still to go today.' : 'Nice work.') + '</p><div class="today-actions">' + left.map(function (m) { return '<a class="btn primary" href="#/m/' + m + '">Start ' + mName(m).toLowerCase() + ' →</a>'; }).join('') + '<a class="' + (left.length ? 'link' : 'btn primary') + '" href="#/m/' + info.trained[0] + '">Add more rounds</a><a class="link" href="#/summary/' + info.trained[0] + '">See today\'s summary</a><a class="link" href="#/pick">Train another muscle</a></div></div></div>';
       info.trained.forEach(function (m) { var seen = {}; logs.filter(function (l) { return l.m === m; }).forEach(function (l) { if (!seen[l.e] && Data.byId[l.e]) { seen[l.e] = 1; under += '<li>' + doneRow(Data.byId[l.e], rowsN++, t, m) + '</li>'; } }); });
     } else if (plan) {
       var exs = [], owner = {}, sets = 0; plans.forEach(function (m) { visibleEx(m).forEach(function (e) { exs.push(e); owner[e.id] = m; }); }); exs.forEach(function (e) { sets += e.sets; });
@@ -372,7 +380,7 @@
   function daysText(muscle) { var d = Data.daysOf(muscle).map(function (n) { return DAYS[n].slice(0, 3); }); return d.length ? d.join(' and ') : 'Not in your week'; }
   function catchUp(t) {
     var out = [], i;
-    for (i = 1; i <= 6; i++) { var inf = Store.dayInfo(Store.addDays(t, -i)); if (inf.kind === 'missed' && out.indexOf(inf.planned) < 0) { out.push(inf.planned); } }
+    for (i = 1; i <= 6; i++) { var inf = Store.dayInfo(Store.addDays(t, -i)); if (inf.kind === 'missed') { inf.plannedAll.forEach(function (m) { if (out.indexOf(m) < 0) { out.push(m); } }); } }
     return out.length ? '<div class="note catch"><b class="t">' + out.length + (out.length === 1 ? ' no show' : ' no shows') + ' this week</b>' + out.map(mName).join(', ') + ' still owed. ' + out.map(function (m) { return '<a href="#/m/' + m + '">Train ' + mName(m).toLowerCase() + ' now</a>'; }).join('') + '</div>' : '';
   }
 
@@ -569,6 +577,7 @@
     var idx = parseInt(arg2, 10) - 1, sk = skipped();
     if (!(idx >= 0 && idx < exs.length)) { idx = 0; for (var q = 0; q < exs.length; q++) { if (Store.setsFor(t, exs[q].id).length < exs[q].sets && sk.indexOf(exs[q].id) < 0) { idx = q; break; } } }
     var ex = exs[idx], i = idx, last = idx === exs.length - 1;
+    var todays = Data.planAll(Store.parse(t).getDay()), nm = todays[todays.indexOf(id) + 1] || (todays.indexOf(id) < 0 ? '' : ''), nextM = nm && visibleEx(nm).length ? nm : '';
     h += '<div class="wk"><nav class="rail" aria-label="Exercises in this workout"><ol>' + exs.map(function (e, k) {
       var st = exStatus(e, t);
       return '<li><a class="ri ' + st.cls + (k === idx ? ' on' : '') + '" href="#/m/' + id + '/' + (k + 1) + '"' + (k === idx ? ' aria-current="step"' : '') + '><span class="rn">' + (st.cls === 'done' ? '✓' : k + 1) + '</span>' + thumbHTML(e, 'rt') + '<span class="rx"><b>' + esc(e.name) + '</b><small>' + st.txt + '</small></span></a></li>';
@@ -581,8 +590,8 @@
       '<details class="guide hist" data-ex="' + ex.id + '"><summary>History and notes</summary><div class="guide-body">' + historyHTML(ex) + '</div></details>' +
       '<details class="guide" data-ex="' + ex.id + '"><summary>Form guide</summary>' + guideHTML(ex) + '</details></section>';
     h += '<div class="wk-nav">' + (idx > 0 ? '<a class="btn" href="#/m/' + id + '/' + idx + '">‹ Previous</a>' : '<span></span>') +
-      '<button class="btn" type="button" data-act="wk-skip" data-id="' + ex.id + '" data-to="' + (last ? '' : id + '/' + (idx + 2)) + '">Skip</button>' +
-      (last ? '<a class="btn primary" data-act="wk-next" href="#/summary/' + id + '">Finish workout</a>' : '<a class="btn primary" data-act="wk-next" href="#/m/' + id + '/' + (idx + 2) + '">Next: ' + esc(exs[idx + 1].name) + ' ›</a>') + '</div>';
+      '<button class="btn" type="button" data-act="wk-skip" data-id="' + ex.id + '" data-to="' + (last ? (nextM ? nextM + '/1' : '') : id + '/' + (idx + 2)) + '">Skip</button>' +
+      (last && nextM ? '<a class="btn primary" data-act="wk-next" href="#/m/' + nextM + '/1">Next: ' + mName(nextM) + ' ›</a>' : last ? '<a class="btn primary" data-act="wk-next" href="#/summary/' + id + '">Finish workout</a>' : '<a class="btn primary" data-act="wk-next" href="#/m/' + id + '/' + (idx + 2) + '">Next: ' + esc(exs[idx + 1].name) + ' ›</a>') + '</div>';
     h += '<div class="finish"><h3>Finished early?</h3><p class="summary" id="sum">' + summaryText(id) + '</p><div class="today-actions"><a class="btn small" href="#/summary/' + id + '">Finish workout</a></div></div>';
     h += '<p class="safety">Listen to your body. Stop an exercise if you feel sharp pain, and ask a trainer to check your form on heavy lifts.</p></div></div>';
     return h;
@@ -664,10 +673,10 @@
     var doneN = 0, planN = 0;
     for (var d = 1; d <= n; d++) {
       var ds = y + '-' + (mo + 1 < 10 ? '0' : '') + (mo + 1) + '-' + (d < 10 ? '0' : '') + d, inf = Store.dayInfo(ds);
-      var shown = inf.trained.length ? inf.trained[0] : inf.planned;
+      var shownAll = inf.trained.length ? inf.trained : inf.plannedAll, shown = shownAll[0];
       if (inf.kind === 'done' || inf.kind === 'missed' || inf.kind === 'madeup') { planN += inf.planned ? 1 : 0; doneN += (inf.kind === 'done' || inf.kind === 'madeup') && inf.planned ? 1 : 0; }
       h += '<button type="button" class="cd ' + inf.kind + (ds === t ? ' today' : '') + '" data-act="day" data-d="' + ds + '" aria-pressed="' + (ds === calState.sel) + '" aria-label="' +
-        longDate(ds) + (shown ? ', ' + mName(shown) : ', rest') + ', ' + inf.kind + '">' + d + (shown && inf.kind !== 'none' ? '<small>' + mName(shown).slice(0, 3) + '</small>' : '') + '</button>';
+        longDate(ds) + (shown ? ', ' + mList(shownAll) : ', rest') + ', ' + inf.kind + '">' + d + (shown && inf.kind !== 'none' ? '<small>' + mShort(shown) + (shownAll.length > 1 ? ' +' + (shownAll.length - 1) : '') + '</small>' : '') + '</button>';
     }
     h += '</div><div class="cal-legend"><span><i class="lg done"></i>Trained</span><span><i class="lg missed"></i>No show</span><span><i class="lg madeup"></i>Made up later</span><span><i class="lg"></i>Planned or rest</span></div>';
     h += '<p class="muted" style="margin-top:10px">' + doneN + ' of ' + planN + ' planned days done this month so far.</p>';
@@ -684,11 +693,11 @@
         var ex = Data.byId[id];
         return '<li>' + esc(ex ? ex.name : id) + '<small class="num">' + byEx[id].map(function (s) { return s.reps + ' × ' + kgStr(s.kg); }).join(', ') + ' kg</small></li>';
       }).join('') + '</ul>';
-    } else if (inf.kind === 'madeup') { h += '<p class="muted">Planned ' + mName(inf.planned) + ', trained later that week.</p>';
-    } else if (inf.kind === 'missed') { h += '<p class="muted">No show. ' + mName(inf.planned) + ' was planned, nothing logged.</p>'; }
+    } else if (inf.kind === 'madeup') { h += '<p class="muted">Planned ' + mList(inf.plannedAll) + ', trained later that week.</p>';
+    } else if (inf.kind === 'missed') { h += '<p class="muted">No show. ' + mList(inf.plannedAll) + ' was planned, nothing logged.</p>'; }
     else if (inf.kind === 'rest') { h += '<p class="muted">Rest day.</p>'; }
-    else if (inf.kind === 'upcoming') { h += '<p class="muted">Planned: ' + mName(inf.planned) + '.</p>'; }
-    else if (inf.kind === 'today') { h += '<p class="muted">Planned: ' + mName(inf.planned) + '.</p><div class="today-actions"><a class="btn primary" href="#/m/' + inf.planned + '">Start</a></div>'; }
+    else if (inf.kind === 'upcoming') { h += '<p class="muted">Planned: ' + mList(inf.plannedAll) + '.</p>'; }
+    else if (inf.kind === 'today') { h += '<p class="muted">Planned: ' + mList(inf.plannedAll) + '.</p><div class="today-actions">' + inf.plannedAll.map(function (m) { return '<a class="btn primary" href="#/m/' + m + '">Start ' + mName(m).toLowerCase() + '</a>'; }).join('') + '</div>'; }
     else { h += '<p class="muted">Before you started tracking.</p>'; }
     return h + '</div>';
   }
@@ -696,7 +705,7 @@
   // a compact "tonight" card at the top of Home that opens the Today page
   function tonightStrip(t) {
     var info = Store.dayInfo(t), plans = info.plannedAll;
-    if (info.kind === 'done') { return '<a class="tonight done" href="#/today"><span class="badge red">Fight over</span><b>' + esc(info.trained.map(mName).join(' + ')) + ' done today</b><span class="go">See tonight\'s card ›</span></a>'; }
+    if (info.kind === 'done') { return '<a class="tonight done" href="#/today"><span class="badge red">' + (plans.filter(function (m) { return info.trained.indexOf(m) < 0; }).length ? 'Halftime' : 'Fight over') + '</span><b>' + esc(info.trained.map(mName).join(' + ')) + ' done today</b><span class="go">See tonight\'s card ›</span></a>'; }
     if (!plans.length) { var nx = nextCard(t); return '<a class="tonight" href="#/today"><span class="badge">Rest day</span><b>' + (nx ? 'Next: ' + DAYS[Store.parse(nx.date).getDay()] + ', ' + mName(nx.muscle) : 'Nothing planned') + '</b><span class="go">Open Today ›</span></a>'; }
     return '<a class="tonight" href="#/today"><span class="badge">Tonight</span><b>' + plans.map(mName).join(' + ') + ' night · about ' + sessionMinutes(plans) + ' min</b><span class="go">Enter the ring ›</span></a>';
   }
