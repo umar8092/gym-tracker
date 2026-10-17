@@ -31,6 +31,7 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
   const imgs = await p.evaluate(async () => { await Promise.all([...document.images].map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; }))); return [...document.images].map(i => i.naturalWidth); });
   ok(imgs.length >= 3 && imgs.every(w => w > 0), 'exercise portraits load (' + imgs.length + ' images)');
   ok(await p.locator('.tabs').evaluate(e => getComputedStyle(e).position) === 'fixed', 'phone: tab bar is fixed to the bottom');
+  ok((await p.title()) === 'Today | Gym Workout Tracker', 'page title carries the new name');
   await p.context().close();
 
   // 2. laptop: top bar, two columns

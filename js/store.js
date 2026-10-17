@@ -148,7 +148,7 @@
     exportJSON: function () { return JSON.stringify(db, null, 2); },
     importJSON: function (text) {
       var o = JSON.parse(text);
-      if (!o || !Array.isArray(o.logs) || !o.profile) { throw new Error('Not a Gym Tracker backup file'); }
+      if (!o || !Array.isArray(o.logs) || !o.profile) { throw new Error('Not a Gym Workout Tracker backup file'); }
       o.logs.forEach(function (l) { l.id = typeof l.id === 'string' ? l.id : 'i' + l.id + uid(); l.u = now(); l.dirty = true; });
       o.weights = (o.weights || []).map(function (w) { return { d: w.d, kg: w.kg, u: now(), dirty: true }; });
       o.settings = { u: now(), dirty: true }; o.pull = { logs: 0, weights: 0 };

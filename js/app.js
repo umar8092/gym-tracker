@@ -1,4 +1,4 @@
-/* Gym Tracker UI: hash router + six views. Plain JS, no build step. */
+/* Gym Workout Tracker UI: hash router + six views. Plain JS, no build step. */
 (function () {
   var view = document.getElementById('view');
   var toastEl = document.getElementById('toast');
@@ -688,7 +688,7 @@
       '<div class="fld"><label for="rq-t">What is it?</label><select id="rq-t" class="text-in"><option>Feature</option><option>Exercise</option><option>Problem with something</option></select></div>' +
       '<div class="fld" style="margin-top:8px"><label for="rq-x">Describe it</label><textarea id="rq-x" class="text-in" rows="3" maxlength="500" placeholder="e.g. Add cable fly for chest, or: show my weekly volume per muscle"></textarea></div>' +
       '<div class="btns" style="margin-top:10px"><button class="btn small" type="button" data-act="req-send">Open on GitHub</button><button class="link" type="button" data-act="req-copy">Copy text</button></div></div>';
-    h += '<div class="sec"><h2>Install on your phone</h2><p class="sub">' + (window.__installEvt ? 'Add Gym Tracker to your home screen so it opens like an app.' : /iPhone|iPad/.test(navigator.userAgent) ? 'In Safari tap the Share button, then Add to Home Screen.' : 'Open your browser menu and choose Install app or Add to Home screen.') + '</p>' + (window.__installEvt ? '<button class="btn small" type="button" data-act="install">Install</button>' : '') + '</div>';
+    h += '<div class="sec"><h2>Install on your phone</h2><p class="sub">' + (window.__installEvt ? 'Add Gym Workout Tracker to your home screen so it opens like an app.' : /iPhone|iPad/.test(navigator.userAgent) ? 'In Safari tap the Share button, then Add to Home Screen.' : 'Open your browser menu and choose Install app or Add to Home screen.') + '</p>' + (window.__installEvt ? '<button class="btn small" type="button" data-act="install">Install</button>' : '') + '</div>';
     h += '<div class="sec"><h2>Account</h2><p>Signed in as <b>' + esc(Store.user()) + '</b>.</p><p class="sub" id="sync-state">' + esc(syncText()) + '</p>' +
       '<div class="btns"><button class="btn small" type="button" data-act="sync-now">Sync now</button><button class="link" type="button" data-act="switch-user">Switch user</button></div></div>';
     h += '<div class="sec"><h2>Your data</h2><p class="sub">Saved on this device and copied to the cloud when online. You can also export a backup file.</p>' +
@@ -773,7 +773,7 @@
     startQuotes(); var meEl = document.getElementById('me'); if (meEl) { meEl.textContent = Store.user() || ''; }
     if (!keepScroll) { window.scrollTo(0, 0); }
     var title = { today: 'Today', pick: 'Choose a muscle', calendar: 'Calendar', progress: 'Dashboard', plan: 'Plan', m: r.arg && Data.MUSCLES[r.arg] ? Data.MUSCLES[r.arg].name : 'Workout', summary: 'Summary' }[r.name];
-    document.title = gate ? 'Gym Tracker' : title + ' | Gym Tracker';
+    document.title = gate ? 'Gym Workout Tracker' : title + ' | Gym Workout Tracker';
   }
   function showMuscle(box, v) {
     box.dataset.view = v;

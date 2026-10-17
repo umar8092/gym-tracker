@@ -1,4 +1,4 @@
-/* Gym Tracker: "Main Event" look. Black room, one red for action and no-shows, one gold for the main event and PRs.
+/* Gym Workout Tracker: "Main Event" look. Black room, one red for action and no-shows, one gold for the main event and PRs.
    Dark is the default; the light theme is the same system on canvas white. Tokens first, then base, shell, pages, components. */
 
 :root {
@@ -423,7 +423,7 @@ textarea.text-in { padding-top: 10px; min-height: 90px; }
   .tabs { position: sticky; top: 0; bottom: auto; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; height: 72px; padding: 0 34px; background: var(--bg); border-top: 0; border-bottom: 1px solid var(--line); }
   .tabs a.brand { display: flex; flex-direction: row; justify-self: start; gap: 12px; min-height: 0; font-family: "Anton", sans-serif; font-size: 32px; letter-spacing: .04em; color: var(--ink); }
   .tabs a.brand::before { content: ""; position: static; width: 12px; height: 32px; background: var(--red); display: block; }
-  .tabs a.brand::after { content: "Gym Tracker"; }
+  .tabs a.brand::after { content: "Gym Workout Tracker"; font-size: 27px; white-space: nowrap; }
   .tabs-in { max-width: none; display: flex; height: 72px; }
   .tabs a { flex-direction: row; padding: 0 26px; min-height: 72px; font-size: 14px; letter-spacing: .16em; }
   .tabs a svg { display: none; }
@@ -462,6 +462,7 @@ textarea.text-in { padding-top: 10px; min-height: 90px; }
   main[data-r="calendar"] { max-width: 980px; }
 }
 
+@media (min-width: 1000px) and (max-width: 1199px) { .tabs { padding: 0 20px; } .tabs a { padding: 0 14px; letter-spacing: .12em; } .tabs a.brand { padding: 0; } .tabs a.brand::after { font-size: 22px; } .tabs a.brand::before { height: 26px; } }
 @media (max-width: 380px) { .views button, .seg button { min-width: 0; padding: 4px 2px; font-size: 11px; letter-spacing: .05em; } .stepper button { width: 38px; } .stepper input { font-size: 30px; } section.ex { padding-left: 12px; padding-right: 12px; } h1 { font-size: 44px; } .week { gap: 5px; } .stats b { font-size: 40px; } }
 @media (max-width: 480px) { .t-main .lab span + span { display: none; } .d-week, .fweek { padding-left: 12px; padding-right: 12px; } .week { gap: 6px; } .wd { padding-left: 0; padding-right: 0; } .bout .lt { display: none; } .bout { grid-template-columns: 24px 54px 1fr auto; gap: 10px; } .bout .thumb { width: 54px; height: 44px; } .bout b.nm { font-size: 20px; } .res { min-width: 64px; font-size: 10px; letter-spacing: .1em; padding: 0 8px; } }
 @media (prefers-reduced-motion: no-preference) {

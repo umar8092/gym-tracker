@@ -1,6 +1,6 @@
 {
-  "name": "Gym Tracker",
-  "short_name": "Gym",
+  "name": "Gym Workout Tracker",
+  "short_name": "Gym Workout",
   "description": "Pick today's muscle, log sets and kilograms, and track progress.",
   "start_url": "./",
   "scope": "./",
