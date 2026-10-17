@@ -125,7 +125,7 @@
   }
 
   function guideHTML(ex) {
-    return '<div class="guide-body">' +
+    return '<div class="guide-body">' + machineBlock(ex) +
       (ex.fig ? '<div class="fig" data-fig="' + ex.id + '">' + figureHTML(ex) + '</div>'
               : '<p class="fig-note">3D form animation for this exercise is coming. Use the diagram and steps below for now.</p>') +
       '<div class="muscles"><h3>Muscles worked</h3><div class="mtoggle" role="group" aria-label="Muscle diagram view"><button type="button" data-mv="front">Front</button><button type="button" data-mv="back">Back</button></div>' +
@@ -151,7 +151,6 @@
       h += '<section class="ex" data-ex="' + ex.id + '"><div class="ex-head"><span class="ex-n">' + (i + 1) + '</span><div><h2>' + esc(ex.name) + '</h2>' +
         '<p class="ex-meta"><b>' + ex.sets + ' sets of ' + esc(ex.reps) + ' reps</b>, ' + ex.equip.toLowerCase() + '. ' + esc(ex.target) + '</p>' +
         (ex.confirm ? '<p class="confirm-note">Needs confirming that your gym has it.</p>' : '') + '</div></div>' +
-        (ex.confirm ? machineBlock(ex) : '') +
         '<div class="ex-log">' + loggerHTML(ex) + '</div>' +
         '<details class="guide" data-ex="' + ex.id + '"><summary>Form guide</summary>' + guideHTML(ex) + '</details></section>';
     });
@@ -263,7 +262,7 @@
         var off = Store.isHidden(ex.id);
         h += '<div class="plan-item"><div class="plan-ex' + (off ? ' off' : '') + '"><label><input type="checkbox" data-f="inc" data-id="' + ex.id + '"' + (off ? '' : ' checked') + '><span class="nm">' + esc(ex.name) + '</span></label>' +
           '<span class="tg' + (ex.confirm ? ' cf' : '') + '">' + ex.equip + (ex.confirm ? ', to confirm' : '') + '</span></div>' +
-          (ex.confirm ? '<details><summary>What it looks like</summary>' + machineBlock(ex) + '</details>' : '') + '</div>';
+          '</div>';
       });
       h += '</div>';
     });
