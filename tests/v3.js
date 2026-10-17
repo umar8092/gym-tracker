@@ -170,5 +170,15 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
   ok((await p.locator('#pd-arms a[href="#/m/arms"]').count()) === 1, 'each muscle in Plan has a Train now link');
   await p.context().close();
 
+  // 15. share cards: post and story sizes, record card
+  p = await open(390, 844, FRI, '#/summary/arms', { logs: armsLogs.concat([lg(FRI, 0, 'barbell-curl', 'arms', 12, 32.5)]), weights, profile });
+  await p.locator('.share-mini').first().click(); await p.waitForSelector('.share-prev img', { timeout: 8000 });
+  ok((await p.locator('#sheet h2').textContent()).includes('record') && await p.locator('#sheet [data-act="share-fmt"]').count() === 2, 'a record card opens with Post and Story sizes');
+  const dims = async () => p.evaluate(() => new Promise(r => { const i = document.querySelector('.share-prev img'); if (i.complete) r([i.naturalWidth, i.naturalHeight]); else i.onload = () => r([i.naturalWidth, i.naturalHeight]); }));
+  ok((await dims()).join('x') === '1080x1350', 'post card is 1080 x 1350');
+  await p.locator('[data-act="share-fmt"][data-v="story"]').click(); await p.waitForFunction(() => { const i = document.querySelector('.share-prev img'); return i && i.naturalHeight === 1920; }, null, { timeout: 8000 });
+  ok(true, 'story card is 1080 x 1920');
+  await p.context().close();
+
   console.log(fails.length ? '\nFAILURES:\n' + fails.join('\n') : '\nv3 UI tests OK'); await b.close(); process.exit(fails.length ? 1 : 0);
 })();

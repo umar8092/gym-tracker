@@ -82,7 +82,7 @@
     var t = Store.today(), ws = weekStart(t), we = Store.addDays(ws, 6), logs = Store.allLogs().filter(function (l) { return l.d >= ws && l.d <= we; }), days = {}, prs = [], ms = [];
     logs.forEach(function (l) { days[l.d] = 1; if (ms.indexOf(l.m) < 0) { ms.push(l.m); } var pr = Stats.prFor(l, exLogs(l.e)); if (pr && Data.byId[l.e]) { prs.push(Data.byId[l.e].name + ' ' + (l.kg > 0 ? wStr(l.kg) + ' ' + U() + ' × ' + l.reps : l.reps + ' reps')); } });
     var d1 = Store.parse(ws), d2 = Store.parse(we), range = d1.getDate() + ' ' + MONTHS[d1.getMonth()].slice(0, 3) + ' to ' + d2.getDate() + ' ' + MONTHS[d2.getMonth()].slice(0, 3);
-    return { title: 'My week', sub: range, big: ms.length ? ms.map(mName).join(' + ') : 'Rest week',
+    return { title: 'My week', sub: range, badge: prs.length ? prs.length + (prs.length === 1 ? ' new PR' : ' new PRs') : '', big: ms.length ? ms.map(mName).join(' + ') : 'Rest week',
       stats: [[Object.keys(days).length, 'Sessions'], [logs.length, 'Sets'], [Math.round(Store.volume(logs)).toLocaleString(), U() + ' lifted'], [Stats.calories(logs, Store.currentKg()), 'Kcal (est.)']],
       lines: (prs.length ? ['New PRs: ' + prs.slice(0, 3).join(', ')] : []).concat([Store.streak() + '-day streak', 'Weight ' + wStr(Store.currentKg()) + ' ' + U() + ', goal ' + wStr(Store.profile().goalKg) + ' ' + U()]) };
   }
@@ -90,40 +90,69 @@
     var t = Store.today(), logs = Store.logsOn(t).filter(function (l) { return l.m === muscle; }), ids = [], prs = [];
     logs.forEach(function (l) { if (ids.indexOf(l.e) < 0) { ids.push(l.e); } var pr = Stats.prFor(l, exLogs(l.e)); if (pr && Data.byId[l.e]) { prs.push(Data.byId[l.e].name + ' ' + wStr(l.kg) + ' ' + U() + ' × ' + l.reps); } });
     var mins = Sess.get() && Sess.ms() > 60000 ? Math.round(Sess.ms() / 60000) : 0;
-    return { title: longDate(t), sub: 'Workout done', big: mName(muscle) + ' day',
+    return { title: longDate(t), sub: 'Workout done', big: mName(muscle) + ' day', badge: prs.length ? prs.length + (prs.length === 1 ? ' new PR' : ' new PRs') : '',
       stats: [[logs.length, 'Sets'], [Math.round(Store.volume(logs)).toLocaleString(), U() + ' lifted'], [mins || ids.length, mins ? 'Minutes' : 'Exercises'], [Stats.calories(logs, Store.currentKg()), 'Kcal (est.)']],
       lines: (prs.length ? ['New PRs: ' + prs.slice(0, 3).join(', ')] : []).concat(ids.slice(0, 5).map(function (id) { return Data.byId[id] ? Data.byId[id].name : id; })) };
   }
-  function shareText(d) {
-    return ['🏋️ ' + d.title + (d.sub ? ' · ' + d.sub : ''), d.big, ''].concat(d.stats.map(function (x) { return '• ' + x[0] + ' ' + x[1].toLowerCase(); }), [''], d.lines.map(function (l) { return '▸ ' + l; }), ['', 'Gym Workout Tracker', SITE]).join('\n');
+  // a personal-record card for one logged set
+  function prShare(exId, setId) {
+    var ex = Data.byId[exId], set = Store.allLogs().filter(function (l) { return l.id === setId; })[0] || bestSet(exLogs(exId).filter(function (l) { return !l.del; }));
+    if (!ex || !set) { return { title: 'Record', sub: '', big: 'New PR', stats: [], lines: [] }; }
+    return { title: longDate(set.d), sub: 'Personal record', badge: 'New PR', big: ex.name,
+      stats: set.kg > 0 ? [[wStr(set.kg), U()], [set.reps, set.reps === 1 ? 'Rep' : 'Reps'], [kgStr(Stats.toU(Stats.epley(set.kg, set.reps))), 'Est. one-rep max (' + U() + ')'], [Store.streak(), 'Day streak']] : [[set.reps, 'Reps'], [Store.streak(), 'Day streak']],
+      lines: [mName(ex.muscle) + ' day', 'Beat my last best. Next target: a little more.'] };
   }
-  function drawCard(d) {
-    var W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H; var x = c.getContext('2d'), A = 'Anton, Impact, "Arial Narrow", sans-serif', B = 'Archivo, system-ui, sans-serif';
-    x.fillStyle = '#0A0A0B'; x.fillRect(0, 0, W, H);
-    x.fillStyle = '#E5202E'; x.fillRect(0, 0, W, 120); x.fillStyle = '#fff'; x.font = '56px ' + A; x.textBaseline = 'middle'; x.fillText(d.title.toUpperCase(), 60, 62);
-    x.textAlign = 'right'; x.font = '800 30px ' + B; x.fillText((d.sub || '').toUpperCase(), W - 60, 62); x.textAlign = 'left';
-    // big name, shrunk to fit
-    var size = 190; x.fillStyle = '#F4F4F2'; do { x.font = size + 'px ' + A; size -= 6; } while (x.measureText(d.big.toUpperCase()).width > W - 120 && size > 60);
-    x.textBaseline = 'alphabetic'; x.fillText(d.big.toUpperCase(), 60, 360);
-    // stats 2x2
-    d.stats.forEach(function (s, i) {
-      var cx = 60 + (i % 2) * 500, cy = 470 + Math.floor(i / 2) * 250;
-      x.fillStyle = '#131315'; x.fillRect(cx, cy, 460, 210); x.strokeStyle = '#2C2C31'; x.lineWidth = 2; x.strokeRect(cx, cy, 460, 210);
-      x.fillStyle = '#F4F4F2'; x.font = '120px ' + A; x.fillText(String(s[0]), cx + 30, cy + 135);
-      x.fillStyle = '#9C9CA5'; x.font = '800 28px ' + B; x.fillText(s[1].toUpperCase(), cx + 32, cy + 185);
+  function shareText(d) {
+    return ['🏋️ ' + d.title + (d.sub ? ' · ' + d.sub : ''), (d.badge ? '🏆 ' + d.badge + ': ' : '') + d.big, ''].concat(d.stats.map(function (x) { return '• ' + x[0] + ' ' + x[1].toLowerCase(); }), [''], d.lines.map(function (l) { return '▸ ' + l; }), ['', 'Gym Workout Tracker', SITE]).join('\n');
+  }
+  var cardLogo = null;   // the flexing-figure logo as an image, made once
+  function loadLogo() {
+    if (cardLogo) { return Promise.resolve(cardLogo); }
+    return new Promise(function (res) {
+      var svg = FLEX.replace('<svg class="flex-logo"', '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="240"').replace(/aria-label="[^"]*" focusable="false"/, '');
+      var im = new Image(); im.onload = function () { cardLogo = im; res(im); }; im.onerror = function () { res(null); };
+      im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
     });
-    x.fillStyle = '#D9A93A'; x.fillRect(60, 1010, 8, 190);
-    x.font = '700 36px ' + B; var y = 1040; d.lines.slice(0, 4).forEach(function (l) { x.fillStyle = '#F4F4F2'; var t = l; while (x.measureText(t).width > W - 160 && t.length > 8) { t = t.slice(0, -2); } x.fillText(t === l ? l : t + '…', 92, y); y += 48; });
-    x.fillStyle = '#E5202E'; x.fillRect(0, H - 90, W, 90); x.fillStyle = '#fff'; x.font = '56px ' + A; x.textBaseline = 'middle'; x.fillText('GYM WORKOUT TRACKER', 60, H - 44);
+  }
+  // fmt: 'post' = 1080x1350 (Instagram feed), 'story' = 1080x1920 (Stories / Status)
+  function drawCard(d, fmt) {
+    var W = 1080, H = fmt === 'story' ? 1920 : 1350, c = document.createElement('canvas'); c.width = W; c.height = H; var x = c.getContext('2d'), A = 'Anton, Impact, "Arial Narrow", sans-serif', B = 'Archivo, system-ui, sans-serif', story = fmt === 'story';
+    x.fillStyle = '#0A0A0B'; x.fillRect(0, 0, W, H);
+    // faint plate stripes for texture
+    x.fillStyle = '#101012'; for (var i = 0; i < 6; i++) { x.fillRect(W - 90 - i * 46, story ? 140 : 120, 26, H); }
+    var top = story ? 140 : 120; x.fillStyle = '#E5202E'; x.fillRect(0, 0, W, top);
+    x.fillStyle = '#fff'; x.font = '60px ' + A; x.textBaseline = 'middle'; x.fillText(d.title.toUpperCase(), 60, top / 2 + 2);
+    x.textAlign = 'right'; x.font = '800 30px ' + B; x.fillText((d.sub || '').toUpperCase(), W - 60, top / 2 + 2); x.textAlign = 'left';
+    var y0 = top + (story ? 150 : 90);
+    if (d.badge) { x.fillStyle = '#D9A93A'; x.font = '800 34px ' + B; var bw = x.measureText(d.badge.toUpperCase()).width + 48; x.fillRect(60, y0 - 52, bw, 64); x.fillStyle = '#0A0A0B'; x.textBaseline = 'middle'; x.fillText(d.badge.toUpperCase(), 84, y0 - 19); y0 += 40; }
+    var size = story ? 230 : 190; x.fillStyle = '#F4F4F2'; var words = d.big.toUpperCase();
+    do { x.font = size + 'px ' + A; size -= 6; } while (x.measureText(words).width > W - 120 && size > 60);
+    x.textBaseline = 'alphabetic'; x.fillText(words, 60, y0 + size * 0.95);
+    var sy = y0 + size * 0.95 + (story ? 110 : 70), box = story ? 270 : 210;
+    d.stats.forEach(function (s, i) {
+      var cx = 60 + (i % 2) * 500, cy = sy + Math.floor(i / 2) * (box + 40);
+      x.fillStyle = '#131315'; x.fillRect(cx, cy, 460, box); x.strokeStyle = '#2C2C31'; x.lineWidth = 2; x.strokeRect(cx, cy, 460, box);
+      x.fillStyle = '#F4F4F2'; x.font = (story ? 150 : 120) + 'px ' + A; x.fillText(String(s[0]), cx + 30, cy + box - (story ? 100 : 75));
+      x.fillStyle = '#9C9CA5'; x.font = '800 28px ' + B; x.fillText(String(s[1]).toUpperCase(), cx + 32, cy + box - 26);
+    });
+    var ly = sy + Math.ceil(d.stats.length / 2) * (box + 40) + 30;
+    if (d.lines.length) { x.fillStyle = '#D9A93A'; x.fillRect(60, ly - 36, 8, Math.min(4, d.lines.length) * 48 + 4); }
+    x.font = '700 36px ' + B; d.lines.slice(0, story ? 6 : 4).forEach(function (l) { x.fillStyle = '#F4F4F2'; var t = l; while (x.measureText(t).width > W - 160 && t.length > 8) { t = t.slice(0, -2); } x.fillText(t === l ? l : t + '…', 92, ly); ly += 48; });
+    x.fillStyle = '#E5202E'; x.fillRect(0, H - 120, W, 120);
+    x.fillStyle = '#fff'; x.font = '60px ' + A; x.textBaseline = 'middle'; x.fillText('GYM WORKOUT TRACKER', 60, H - 58);
+    if (cardLogo) { var lw = 230, lh = lw * 0.4; x.drawImage(cardLogo, W - lw - 50, H - 120 + (120 - lh) / 2, lw, lh); }
     return c;
   }
   var shareCurrent = null;
-  function openShare(d) {
-    shareCurrent = { d: d, text: shareText(d), blob: null };
-    var load = document.fonts && document.fonts.load ? Promise.all([document.fonts.load('60px Anton'), document.fonts.load('800 30px Archivo')]).catch(function () {}) : Promise.resolve();
-    var bg = openSheet('<h2>Share</h2><p class="sub">Send it to a friend or post it.</p><div class="share-prev" id="share-prev"><p class="muted">Making your card…</p></div><div class="btns share-btns"><button class="btn primary" type="button" data-act="share-go">Share</button><button class="btn" type="button" data-act="share-save">Save image</button><button class="btn" type="button" data-act="share-copy">Copy text</button></div>', 'sheet-share');
+  function openShare(d, fmt) {
+    fmt = fmt || 'post'; shareCurrent = { d: d, text: shareText(d), blob: null, fmt: fmt };
+    var load = Promise.all([document.fonts && document.fonts.load ? Promise.all([document.fonts.load('60px Anton'), document.fonts.load('800 30px Archivo')]).catch(function () {}) : 0, loadLogo()]);
+    var body = '<h2>' + (d.badge ? 'Share your record' : 'Share') + '</h2><p class="sub">Made for Instagram: pick Post or Story, then Share or Save image.</p><div class="modes" role="group" aria-label="Card size" style="grid-template-columns:repeat(2,1fr)">' +
+      [['post', 'Post 4:5'], ['story', 'Story 9:16']].map(function (f) { return '<button type="button" class="chip" data-act="share-fmt" data-v="' + f[0] + '" aria-pressed="' + (fmt === f[0]) + '">' + f[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="share-prev" id="share-prev"><p class="muted">Making your card…</p></div><div class="btns share-btns"><button class="btn primary" type="button" data-act="share-go">Share</button><button class="btn" type="button" data-act="share-save">Save image</button><button class="btn" type="button" data-act="share-copy">Copy text</button></div>';
+    if (document.getElementById('sheet')) { var sb = document.querySelector('#sheet .sheet-body'); sb.innerHTML = body; } else { openSheet(body, 'sheet-share'); }
     load.then(function () {
-      var c = drawCard(d), prev = document.getElementById('share-prev'); if (!prev) { return; }
+      var c = drawCard(d, fmt), prev = document.getElementById('share-prev'); if (!prev) { return; }
       c.toBlob(function (b) { shareCurrent.blob = b; var im = new Image(); im.alt = 'Preview of your share card'; im.src = URL.createObjectURL(b); prev.innerHTML = ''; prev.appendChild(im); }, 'image/png');
     });
   }
@@ -744,7 +773,7 @@
     var h = '<a class="crumb" href="#/m/' + muscle + '">Back to workout</a><h1>' + mName(muscle) + ' done</h1>' +
       '<div class="stats"><div><b class="num">' + logs.length + '</b><span>Sets</span></div><div><b class="num">' + vol.toLocaleString() + '</b><span>Kg lifted</span></div>' + (mins ? '<div><b class="num">' + mins + '</b><span>Minutes</span></div>' : '') + '<div><b class="num">' + Stats.calories(logs, Store.currentKg()) + '</b><span>Kcal (estimate)</span></div></div>';
     if (compared) { h += '<p class="lead" style="margin-top:18px"><b>' + (beat ? 'Won ' + beat + ' of ' + compared + ' bouts against last time.' : 'No wins against last time today. Rest and aim for it next session.') + '</b></p>'; }
-    if (prs.length) { h += '<div class="sec"><h2>Personal records</h2><ul class="hist-list">' + prs.map(function (p) { return '<li><span class="hd">' + esc(p.name) + '</span><span class="hs num">' + p.set.reps + ' × ' + wStr(p.set.kg) + ' ' + U() + '</span><span class="prb">PR</span><span class="vtext">' + p.text + '</span></li>'; }).join('') + '</ul></div>'; }
+    if (prs.length) { h += '<div class="sec"><h2>Personal records</h2><ul class="hist-list">' + prs.map(function (p) { return '<li><span class="hd">' + esc(p.name) + ' <button type="button" class="plain share-mini" data-act="share-pr" data-e="' + p.set.e + '" data-id="' + p.set.id + '">Share</button></span><span class="hs num">' + p.set.reps + ' × ' + wStr(p.set.kg) + ' ' + U() + '</span><span class="prb">PR</span><span class="vtext">' + p.text + '</span></li>'; }).join('') + '</ul></div>'; }
     h += '<div class="sec"><h2>Exercises</h2><ul class="hist-list">' + rows + '</ul></div>';
     summaryText_ = mName(muscle) + ' day, ' + shortDate(t) + ': ' + logs.length + ' sets, ' + vol.toLocaleString() + ' ' + U() + ' lifted' + (mins ? ', about ' + mins + ' min' : '') + ', about ' + Stats.calories(logs, Store.currentKg()) + ' kcal.' +
       (compared ? ' Won ' + beat + ' of ' + compared + ' bouts against last time.' : '') + (prs.length ? ' PRs: ' + prs.map(function (p) { return p.name + ' (' + wStr(p.set.kg) + ' ' + U() + ' x ' + p.set.reps + ')'; }).join(', ') + '.' : '');
@@ -1003,10 +1032,11 @@
     if (n.length >= 8 && /\d/.test(n) && /[a-z]/.test(n)) { return { cls: 'good', txt: 'Hard to guess. Good.' }; }
     return { cls: 'mid', txt: 'Add a number or a few more letters to make it harder to guess.' };
   }
+  var FLEX = '<svg class="flex-logo" viewBox="0 0 200 80" role="img" aria-label="Gym Workout Tracker" focusable="false"><g fill="currentColor"><rect x="2" y="37" width="8" height="6" rx="3"/><rect x="10" y="24" width="10" height="32" rx="5"/><rect x="24" y="14" width="12" height="52" rx="6"/><rect x="40" y="6" width="14" height="68" rx="7"/><rect x="190" y="37" width="8" height="6" rx="3"/><rect x="180" y="24" width="10" height="32" rx="5"/><rect x="164" y="14" width="12" height="52" rx="6"/><rect x="146" y="6" width="14" height="68" rx="7"/></g><text x="103.5" y="53" text-anchor="middle" font-family="Anton,Impact,Arial Narrow,sans-serif" font-size="32" letter-spacing="7" fill="#E5202E">GYM</text></svg>';
   function viewLogin() {
     if (login.step === 'memo') { return viewMemo(); }
     if (login.step === 'loading') { return viewLoading(); }
-    return '<h1>Who is training?</h1><p class="intro">Pick a username that is personal to you and hard to guess. It is the only key to your workouts: there is no password, so anyone who types the same name can see and change your data.</p>' +
+    return FLEX + '<h1>Who is training?</h1><p class="intro">Pick a username that is personal to you and hard to guess. It is the only key to your workouts: there is no password, so anyone who types the same name can see and change your data.</p>' +
       '<form data-form="login" novalidate><div class="fld" style="margin-top:20px"><label for="un">Username</label><div class="un-wrap"><input id="un" class="text-in" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="20" required aria-describedby="un-hint un-str" value="' + esc(login.name) + '"><span class="un-count num" id="un-count" aria-live="polite">' + login.name.length + ' / 20</span></div></div>' +
       '<p class="un-hint" id="un-hint">3 to 20 characters: lowercase letters, numbers and underscores.</p><p class="un-str" id="un-str"></p>' +
       '<div class="un-sug"><span>Need an idea? Tap one:</span><div class="un-chips" id="un-chips">' + suggestNames().map(function (n) { return '<button type="button" class="chip" data-act="use-name" data-v="' + n + '">' + n + '</button>'; }).join('') + '</div><button type="button" class="link" data-act="shuffle-names">Show other ideas</button></div>' +
@@ -1021,7 +1051,7 @@
       '<button class="btn primary block" type="button" data-act="memo-go" id="memo-go" disabled>Continue</button><p style="margin-top:8px"><button class="link" type="button" data-act="offline-go" id="offline-go" hidden>Continue offline instead</button></p>';
   }
   function viewLoading() {
-    return '<h1>Loading your workouts</h1><p class="intro" id="load-msg">Getting <b>' + esc(login.name) + '</b> from the cloud. This can take a few seconds on a slow connection.</p><div class="wait-bar" role="progressbar" aria-label="Loading"><i></i></div><p class="num" id="load-timer" style="margin-top:10px;font-weight:800">0 s</p><button class="link" type="button" data-act="load-skip" id="load-skip" hidden>Skip and continue (it will sync in the background)</button>';
+    return FLEX + '<h1>Loading your workouts</h1><p class="intro" id="load-msg">Getting <b>' + esc(login.name) + '</b> from the cloud. This can take a few seconds on a slow connection.</p><div class="wait-bar" role="progressbar" aria-label="Loading"><i></i></div><p class="num" id="load-timer" style="margin-top:10px;font-weight:800">0 s</p><button class="link" type="button" data-act="load-skip" id="load-skip" hidden>Skip and continue (it will sync in the background)</button>';
   }
   function loginTimer(fn) { clearInterval(login.ticker); login.t0 = Date.now(); login.ticker = setInterval(function () { fn(Math.floor((Date.now() - login.t0) / 1000)); }, 1000); fn(0); }
   function loginReset() { clearInterval(login.ticker); login = { step: 'form', name: '', check: null, res: '', ticker: 0, t0: 0 }; }
@@ -1116,9 +1146,10 @@
   function num(v) { var n = parseFloat(v); return isNaN(n) ? NaN : n; }
   function closeMenus() { view.querySelectorAll('.lb-menu').forEach(function (m) { m.hidden = true; }); view.querySelectorAll('[data-act="menu"]').forEach(function (b) { b.setAttribute('aria-expanded', 'false'); }); }
 
-  view.addEventListener('click', function (e) {
+  document.addEventListener('click', function (e) {   // on the document so buttons inside dialogs (outside the page area) work too
     var el = e.target.closest('[data-act],[data-mv]');
     if (!el) { closeMenus(); return; }
+    if (!view.contains(el) && !el.closest('#sheet')) { return; }
     if (el.dataset.mv) { showMuscle(el.closest('.muscles'), el.dataset.mv); return; }
     var act = el.dataset.act, secEl = el.closest('section.ex'), exId = secEl && secEl.dataset.ex, dr = exId && draft[exId];
     if (act !== 'menu' && act !== 'kgset') { closeMenus(); }
@@ -1138,7 +1169,7 @@
         if (isNaN(kg) || kg < 0 || (kg === 0 && ex.equip !== 'Bodyweight')) { toast(ex.equip === 'Barbell' ? 'Pick a weight first. An empty bar is ' + BAR_NAME() + '.' : 'Pick a weight first. Start light.'); break; }
         Store.addSet(Store.today(), ex.muscle, exId, reps, kg);
         var doneSets = Store.setsFor(Store.today(), exId), mine = doneSets[doneSets.length - 1], pr = Stats.prFor(mine, exLogs(exId));
-        toast('Round ' + doneSets.length + ' logged' + (pr ? '. ' + Stats.PR_TEXT[pr] + '!' : ''));
+        toast('Round ' + doneSets.length + ' logged' + (pr ? '. ' + Stats.PR_TEXT[pr] + '!' : ''), pr ? { label: 'Share PR', fn: function () { openShare(prShare(exId, mine.id)); } } : null);
         if (wasLast && wasLast.sets[doneSets.length]) { draft[exId] = { reps: wasLast.sets[doneSets.length].reps, kg: wasLast.sets[doneSets.length].kg }; } // preload the next set from last time
         var ord = visibleEx(ex.muscle), oi = ord.map(function (e) { return e.id; }).indexOf(exId);
         if (!(ord[oi + 1] && Store.isSuper(ord[oi + 1].id))) { Rest.start(); }   // superset: go straight to the next exercise
@@ -1186,6 +1217,8 @@
       case 'share-week': openShare(weekShare()); break;
       case 'share-workout': openShare(workoutShare(el.dataset.m)); break;
       case 'share-go': doShare('go'); break;
+      case 'share-fmt': if (shareCurrent) { openShare(shareCurrent.d, el.dataset.v); } break;
+      case 'share-pr': openShare(prShare(el.dataset.e, el.dataset.id)); break;
       case 'share-save': doShare('save'); break;
       case 'share-copy': doShare('copy'); break;
       case 'sheet-close': closeSheet(); break;
