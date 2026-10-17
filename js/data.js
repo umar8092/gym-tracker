@@ -247,14 +247,37 @@
     });
   }
 
+  // week schedules. Only muscles that exist, at most 3 a day, days 0-6.
+  var DEFAULT_SCHEDULE = { 1: ['chest'], 2: ['back'], 3: ['legs'], 4: ['shoulders'], 5: ['arms'] };
+  var PRESETS = [
+    { id: 'five', name: '5 days, one muscle a day', note: 'Mon to Fri. The classic body-part split.', map: DEFAULT_SCHEDULE },
+    { id: 'ppl', name: '6 days, push pull legs', note: 'Push (chest, shoulders), pull (back, arms) and legs, twice a week.', map: { 1: ['chest', 'shoulders'], 2: ['back', 'arms'], 3: ['legs'], 4: ['chest', 'shoulders'], 5: ['back', 'arms'], 6: ['legs'] } },
+    { id: 'upper', name: '4 days, upper and lower', note: 'Upper body twice, legs twice.', map: { 1: ['chest', 'back'], 2: ['legs'], 4: ['shoulders', 'arms'], 5: ['legs'] } },
+    { id: 'three', name: '3 days, whole body', note: 'Mon, Wed, Fri. Every muscle once or twice a week.', map: { 1: ['chest', 'back'], 3: ['legs', 'shoulders'], 5: ['arms', 'chest'] } },
+    { id: 'two', name: '2 days, short week', note: 'Two longer sessions that cover everything.', map: { 1: ['chest', 'back', 'shoulders'], 4: ['legs', 'arms'] } },
+    { id: 'seven', name: '7 days, every day', note: 'Train daily. Legs get the weekend.', map: { 1: ['chest'], 2: ['back'], 3: ['legs'], 4: ['shoulders'], 5: ['arms'], 6: ['chest', 'back'], 0: ['legs'] } }
+  ];
+  function clean(map) {
+    var out = {}; Object.keys(map || {}).forEach(function (k) {
+      var d = +k; if (!(d >= 0 && d <= 6) || !Array.isArray(map[k])) { return; }
+      var a = map[k].filter(function (m, i, arr) { return MUSCLES[m] && arr.indexOf(m) === i; }).slice(0, 3); if (a.length) { out[d] = a; }
+    });
+    return out;
+  }
+  var schedule = clean(DEFAULT_SCHEDULE);
+
   window.Data = {
     setCustom: setCustom,
     MUSCLES: MUSCLES, ORDER: ORDER, EX: EX, byId: byId,
-    // JS getDay(): 1 = Monday ... 5 = Friday
-    planFor: function (jsDay) {
-      for (var i = 0; i < ORDER.length; i++) { if (MUSCLES[ORDER[i]].day === jsDay) { return ORDER[i]; } }
-      return null;
-    },
+    // The week: schedule maps JS getDay() (0 = Sunday ... 6 = Saturday) to a list of up to 3 muscles. No entry = rest day.
+    schedule: schedule,
+    setSchedule: function (map) { schedule = clean(map); Data.schedule = schedule; },
+    planFor: function (jsDay) { var a = schedule[jsDay]; return a && a.length ? a[0] : null; },
+    planAll: function (jsDay) { return (schedule[jsDay] || []).slice(); },
+    // days a muscle is trained, Monday first, as JS getDay() numbers
+    daysOf: function (muscle) { return [1, 2, 3, 4, 5, 6, 0].filter(function (d) { return (schedule[d] || []).indexOf(muscle) >= 0; }); },
+    trainingDays: function () { return Object.keys(schedule).length; },
+    PRESETS: PRESETS, DEFAULT_SCHEDULE: DEFAULT_SCHEDULE,
     exercisesFor: function (muscle) { return EX.filter(function (e) { return e.muscle === muscle; }); }
   };
 })();

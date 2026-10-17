@@ -26,12 +26,13 @@ const OUT = '/tmp/gt-shots', URL = 'http://localhost:8765/index.html';
   await sec.locator('[data-act="rm"]').first().click();
   assert(await sec.locator('.sets li').count() === 2, 'remove works');
   // kg=0 on a non-bodyweight exercise must be refused
-  const sec2 = page.locator('section.ex').nth(1);
+  await page.locator('[data-act="wk-next"]').click(); await page.waitForTimeout(300);   // next exercise (one at a time)
+  const sec2 = page.locator('section.ex').first();
   await sec2.locator('[data-act="log"]').click();
   assert(await sec2.locator('.sets li').count() === 0, 'zero kg refused for dumbbell move');
   await page.screenshot({ path: OUT + '/flow-logged.png', fullPage: false });
   // persistence
-  await page.reload();
+  await page.goto(URL + '#/m/shoulders/1'); await page.reload(); await page.waitForTimeout(300);
   assert(await page.locator('section.ex').first().locator('.sets li').count() === 2, 'sets survive reload');
   // open each form guide and take figure shots
   const n = await page.locator('details.guide:not(.hist)').count();

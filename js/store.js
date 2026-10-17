@@ -15,13 +15,13 @@
   try { user = localStorage.getItem(USER_KEY) || ''; } catch (e) { persistent = false; }
 
   function fresh() {
-    return { profile: { startKg: null, goalKg: null, startDate: ymd(new Date()) }, weights: [], logs: [], hidden: {}, notes: {}, custom: {}, measures: [], superset: {}, settings: { u: 0, dirty: false }, pull: { logs: 0, weights: 0 } };
+    return { profile: { startKg: null, goalKg: null, startDate: ymd(new Date()) }, weights: [], logs: [], hidden: {}, notes: {}, custom: {}, schedule: null, measures: [], superset: {}, settings: { u: 0, dirty: false }, pull: { logs: 0, weights: 0 } };
   }
   function normalize(o) {
     var d = fresh(); for (var k in d) { if (!(k in o)) { o[k] = d[k]; } }
     o.logs.forEach(function (l) { if (typeof l.id === 'number') { l.id = 'o' + l.id + uid(); l.u = l.ts || now(); l.dirty = true; } if (!l.u) { l.u = l.ts || now(); l.dirty = true; } });
     o.weights.forEach(function (w) { if (!w.u) { w.u = now(); w.dirty = true; } });
-    Data.setCustom(o.custom);
+    Data.setCustom(o.custom); Data.setSchedule(o.schedule || Data.DEFAULT_SCHEDULE);
     return o;
   }
   function load(name) {
@@ -99,6 +99,8 @@
     // superset: this exercise is done back to back with the one above it
     isSuper: function (id) { return !!db.superset[id]; },
     setSuper: function (id, on) { if (on) { db.superset[id] = 1; } else { delete db.superset[id]; } touchSettings(); wrote(); },
+    schedule: function () { return JSON.parse(JSON.stringify(Data.schedule || Data.DEFAULT_SCHEDULE)); },
+    setSchedule: function (map) { Data.setSchedule(map); db.schedule = Store.schedule(); touchSettings(); wrote(); },
     customCount: function () { return Object.keys(db.custom).length; },
     addCustom: function (c) {
       if (Store.customCount() >= 12) { return false; }
@@ -118,7 +120,7 @@
 
     /* ---- day status for the calendar and dashboard ---- */
     dayInfo: function (date) {
-      var t = Store.today(), planned = Data.planFor(parse(date).getDay()), trained = [];
+      var t = Store.today(), planned = Data.planFor(parse(date).getDay()), plannedAll = Data.planAll(parse(date).getDay()), trained = [];
       live().forEach(function (l) { if (l.d === date && trained.indexOf(l.m) < 0) { trained.push(l.m); } });
       var kind;
       if (date < db.profile.startDate && !trained.length) { kind = 'none'; }
@@ -130,7 +132,7 @@
         var end = addDays(date, 6);
         kind = live().some(function (l) { return l.m === planned && l.d > date && l.d <= end; }) ? 'madeup' : 'missed';
       }
-      return { date: date, planned: planned, trained: trained, kind: kind };
+      return { date: date, planned: planned, plannedAll: plannedAll, trained: trained, kind: kind };
     },
     streak: function () {
       var n = 0, d = Store.today(), guard = 0;
@@ -155,7 +157,7 @@
       db = normalize(o); wrote();
     },
     // clears this device only; the cloud copy comes back at the next sync
-    reset: function () { db = fresh(); Data.setCustom({}); wrote(); },
+    reset: function () { db = fresh(); Data.setCustom({}); Data.setSchedule(Data.DEFAULT_SCHEDULE); wrote(); },
 
     /* ---- sync hooks (used by sync.js) ---- */
     onWrite: function (f) { writeFns.push(f); },
@@ -165,7 +167,7 @@
       return {
         logs: db.logs.filter(function (l) { return l.dirty; }).map(function (l) { return Object.assign({}, l); }),
         weights: db.weights.filter(function (w) { return w.dirty; }).map(function (w) { return Object.assign({}, w); }),
-        settings: db.settings.dirty ? { u: db.settings.u, profile: db.profile, hidden: db.hidden, notes: db.notes, custom: db.custom, measures: db.measures, superset: db.superset } : null
+        settings: db.settings.dirty ? { u: db.settings.u, profile: db.profile, hidden: db.hidden, notes: db.notes, custom: db.custom, schedule: db.schedule, measures: db.measures, superset: db.superset } : null
       };
     },
     ack: function (sent) {
@@ -190,7 +192,7 @@
         else if (r.u > w.u) { w.kg = r.kg; w.u = r.u; w.dirty = false; changed = true; }
       });
       if (remote.settings && remote.settings.u > db.settings.u) {
-        db.profile = Object.assign(db.profile, remote.settings.profile); db.hidden = remote.settings.hidden || {}; db.notes = remote.settings.notes || {}; db.custom = remote.settings.custom || {}; Data.setCustom(db.custom); db.measures = remote.settings.measures || []; db.superset = remote.settings.superset || {};
+        db.profile = Object.assign(db.profile, remote.settings.profile); db.hidden = remote.settings.hidden || {}; db.notes = remote.settings.notes || {}; db.custom = remote.settings.custom || {}; Data.setCustom(db.custom); db.schedule = remote.settings.schedule || null; Data.setSchedule(db.schedule || Data.DEFAULT_SCHEDULE); db.measures = remote.settings.measures || []; db.superset = remote.settings.superset || {};
         db.settings = { u: remote.settings.u, dirty: false }; changed = true;
       } else if (!remote.settings && db.settings.u === 0 && !Store.needsSetup()) { touchSettings(); }
       if (remote.cursor) { db.pull = remote.cursor; }

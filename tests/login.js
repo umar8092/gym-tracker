@@ -28,7 +28,14 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
   ok(!(await p.locator('#memo-go').isDisabled()), 'ticking the box enables Continue');
   await p.click('#memo-go'); await p.waitForSelector('form[data-form="setup"]', { timeout: 8000 }); ok(true, 'continuing signs in and reaches the setup screen');
   await p.fill('#su-now', '92'); await p.fill('#su-goal', '75'); await p.click('form[data-form="setup"] button[type="submit"]'); await p.waitForTimeout(300);
-  await p.evaluate(() => { location.hash = '#/plan'; }); await p.waitForTimeout(400);
+  ok((await p.locator('.routine li').count()) === 5 && (await p.locator('h1').textContent()).includes('Your week') && await p.locator('.sched').count() === 0, 'after setup a normal 5-day routine is shown, the editor is hidden');
+  ok((await p.locator('[data-act="week-open"]').textContent()).includes('optional'), 'customising is marked optional');
+  await p.click('[data-act="week-open"]'); ok((await p.locator('.sched-day').count()) === 7 && (await p.locator('.preset').count()) === 6, 'customise opens templates and a row for each of the 7 days');
+  await p.click('[data-act="sched-preset"][data-id="three"]'); ok((await p.locator('.sched-sum').textContent()).includes('3 training days'), 'choosing the 3-day template updates the summary');
+  await p.click('.sched-day:nth-child(7) [data-m="legs"]'); ok((await p.locator('.sched-sum').textContent()).includes('4 training days'), 'tapping a muscle on Sunday adds a training day');
+  await p.click('[data-act="week-reset"]'); ok((await p.locator('.routine li').count()) === 5, 'back to the normal routine');
+  await p.click('[data-act="week-done"]'); await p.waitForTimeout(300);
+  await p.evaluate(() => { location.hash = '#/plan'; }); await p.waitForTimeout(400); await p.evaluate(() => { document.querySelectorAll('details.fold').forEach(d => { d.open = true; }); });
   ok((await p.locator('.sec:has(h2:text-is("Account"))').textContent()).includes('only key to your workouts'), 'account section repeats the keep-it-safe reminder');
   await p.context().close();
   // no connection: clear message, offline option

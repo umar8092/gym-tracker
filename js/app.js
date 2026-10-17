@@ -209,21 +209,23 @@
       row('Weight kg', kgStr(cur), kgStr(p.goalKg)) + row('To go', cur > p.goalKg ? kgStr(cur - p.goalKg) : 'Done', '') +
       (tr ? row('Pace', (tr.perWeek < 0 ? '−' : '+') + kgStr(Math.abs(tr.perWeek)) + '/wk', '') : '') + (tr && tr.etaDays ? row('Goal date', shortDate(Store.addDays(t, tr.etaDays)).replace(/^\w+ /, ''), '') : '') +
       row('Record W–L–D', rec.w + '–' + rec.l + '–' + rec.d, '') + row('Unbeaten run', Store.streak() + (Store.streak() === 1 ? ' day' : ' days'), '') +
-      '<div class="goal-bar" role="img" aria-label="' + Math.round(pct * 100) + ' percent of the way to your goal weight"><i style="width:' + Math.round(pct * 100) + '%"></i></div><p style="margin-top:8px"><a class="link" href="#/progress">Log weight</a></p>';
+      '<div class="goal-bar" role="img" aria-label="' + Math.round(pct * 100) + ' percent of the way to your goal weight"><i style="width:' + Math.round(pct * 100) + '%"></i></div><p style="margin-top:8px"><a class="link" href="#/">Log weight</a></p>';
   }
   function weekHTML(t) {
-    var ws = weekStart(t), cells = '', i;
-    for (i = 0; i < 5; i++) {
+    var ws = weekStart(t), cells = '', i, n = 0;
+    for (i = 0; i < 7; i++) {
       var ds = Store.addDays(ws, i), inf = Store.dayInfo(ds), pm = inf.planned;
+      if (!inf.plannedAll.length && !inf.trained.length) { continue; }   // rest days are left out of the strip
+      n++;
       var label = inf.kind === 'done' ? 'Done' : inf.kind === 'missed' ? 'No show' : inf.kind === 'madeup' ? 'Made up' : inf.kind === 'today' ? 'Tonight' : inf.kind === 'upcoming' ? 'Planned' : '';
-      cells += '<a class="wd ' + inf.kind + '" href="#/calendar/' + ds + '"><span class="dn">' + DAYS[(i + 1) % 7].slice(0, 3) + '</span><span class="mn">' + mName(inf.trained.length ? inf.trained[0] : pm) + '</span><span class="st">' + (label || '&nbsp;') + '</span></a>';
+      cells += '<a class="wd ' + inf.kind + '" href="#/calendar/' + ds + '"><span class="dn">' + DAYS[(i + 1) % 7].slice(0, 3) + '</span><span class="mn">' + (inf.trained.length ? inf.trained : inf.plannedAll).map(mName).join(' + ') + '</span><span class="st">' + (label || '&nbsp;') + '</span></a>';
     }
-    return '<div class="week" aria-label="This week">' + cells + '</div>';
+    return '<div class="week" style="grid-template-columns:repeat(' + Math.max(n, 1) + ',minmax(0,1fr))" aria-label="This week">' + (cells || '<p class="muted">No training days in your plan. Set your week in the Plan tab.</p>') + '</div>';
   }
 
   /* ---------- the home screen: tonight's card ---------- */
   function viewToday() {
-    var t = Store.today(), info = Store.dayInfo(t), plan = Data.planFor(Store.parse(t).getDay()), all = Store.allLogs(), cur = Store.currentKg();
+    var t = Store.today(), info = Store.dayInfo(t), plans = info.plannedAll, plan = plans[0] || null, all = Store.allLogs(), cur = Store.currentKg();
     var main = '', under = '', ticker = '<b>' + longDate(t) + '</b>', howto = '<details class="howto"><summary>How a night works</summary><ol><li>Warm up with 1 or 2 light rounds of your first exercise.</li><li>Log each round right after you finish it: reps, then kg.</li><li>Rest 60 to 90 seconds. Pick a weight where your last rep looks like your first.</li><li>Open Form guide on any exercise to rotate the 3D figure and check your position.</li><li>Tap Finish workout to see how you did against last time.</li></ol></details>';
     if (info.kind === 'done') {
       var logs = Store.logsOn(t), names = info.trained.map(mName).join(' and '), rowsN = 0;
@@ -232,15 +234,16 @@
         '<p class="done-note">Nice work.</p><div class="today-actions"><a class="btn primary" href="#/m/' + info.trained[0] + '">Add more rounds</a><a class="link" href="#/summary/' + info.trained[0] + '">See today\'s summary</a><a class="link" href="#/pick">Train another muscle</a></div></div></div>';
       info.trained.forEach(function (m) { var seen = {}; logs.filter(function (l) { return l.m === m; }).forEach(function (l) { if (!seen[l.e] && Data.byId[l.e]) { seen[l.e] = 1; under += '<li>' + doneRow(Data.byId[l.e], rowsN++, t, m) + '</li>'; } }); });
     } else if (plan) {
-      var exs = visibleEx(plan), sets = 0; exs.forEach(function (e) { sets += e.sets; });
-      ticker += '<span>' + mName(plan) + ' night</span><span>' + exs.length + (exs.length === 1 ? ' bout' : ' bouts') + '</span><span>About ' + (Math.round(sets * 2.5 / 5) * 5) + ' min</span><span>Rest 60–90 s between rounds</span>';
+      var exs = [], owner = {}, sets = 0; plans.forEach(function (m) { visibleEx(m).forEach(function (e) { exs.push(e); owner[e.id] = m; }); }); exs.forEach(function (e) { sets += e.sets; });
+      var pname = plans.map(mName).join(' + ');
+      ticker += '<span>' + pname + ' night</span><span>' + exs.length + (exs.length === 1 ? ' bout' : ' bouts') + '</span><span>About ' + (Math.round(sets * 2.5 / 5) * 5) + ' min</span><span>Rest 60–90 s between rounds</span>';
       if (exs.length) {
         var ex0 = exs[0], last0 = Store.lastSession(ex0.id, t);
         main = '<div class="main-event"><div class="me-l"><span class="badge">Main event</span><h1>' + esc(ex0.name) + '</h1><p class="vs"><b>You</b><em>vs</em>' + (last0 ? 'You, ' + shortDate(last0.date).replace(/^\w+ /, '') : 'a first fight') + '</p>' +
           '<div class="facts"><div>Rounds<b>' + ex0.sets + '</b></div><div>Reps<b>' + esc(ex0.reps) + '</b></div><div>Their best<b>' + (last0 ? setText(bestSet(last0.sets)) : '—') + '</b></div></div>' +
-          '<div class="today-actions"><a class="btn primary" href="#/m/' + plan + '">Enter the ring →</a></div></div><div class="me-r">' + (ex0.custom ? '' : '<img src="img/ex/' + ex0.id + '.webp" alt="">') + '</div></div>';
-        exs.slice(1).forEach(function (e, i) { under += '<li>' + boutRow(e, i + 1, t, plan) + '</li>'; });
-      } else { main = '<div class="main-event noimg"><div class="me-l"><span class="badge red">Empty card</span><h1>' + mName(plan) + '</h1><p class="vs">All exercises for this muscle are switched off. Turn some on in the Plan tab.</p></div></div>'; }
+          '<div class="today-actions"><a class="btn primary" href="#/m/' + owner[ex0.id] + '">Enter the ring →</a></div></div><div class="me-r">' + (ex0.custom ? '' : '<img src="img/ex/' + ex0.id + '.webp" alt="">') + '</div></div>';
+        exs.slice(1).forEach(function (e, i) { under += '<li>' + boutRow(e, i + 1, t, owner[e.id]) + '</li>'; });
+      } else { main = '<div class="main-event noimg"><div class="me-l"><span class="badge red">Empty card</span><h1>' + esc(pname) + '</h1><p class="vs">All exercises for this muscle are switched off. Turn some on in the Plan tab.</p></div></div>'; }
     } else {
       var nx = nextCard(t);
       ticker += '<span>Rest day</span>';
@@ -364,20 +367,67 @@
 
 
   // missed muscles from the last 6 days that are not made up yet, with a link to train them now
+  // 'Mon', 'Mon and Thu', 'not scheduled'
+  function daysText(muscle) { var d = Data.daysOf(muscle).map(function (n) { return DAYS[n].slice(0, 3); }); return d.length ? d.join(' and ') : 'Not in your week'; }
   function catchUp(t) {
     var out = [], i;
     for (i = 1; i <= 6; i++) { var inf = Store.dayInfo(Store.addDays(t, -i)); if (inf.kind === 'missed' && out.indexOf(inf.planned) < 0) { out.push(inf.planned); } }
     return out.length ? '<div class="note catch"><b class="t">' + out.length + (out.length === 1 ? ' no show' : ' no shows') + ' this week</b>' + out.map(mName).join(', ') + ' still owed. ' + out.map(function (m) { return '<a href="#/m/' + m + '">Train ' + mName(m).toLowerCase() + ' now</a>'; }).join('') + '</div>' : '';
   }
 
+  /* =========================================================  YOUR WEEK (schedule + equipment)  */
+  var WEEK = [1, 2, 3, 4, 5, 6, 0], onboardWeek = false;
+  function sameSchedule(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+  function sessionMinutes(muscles) { var sets = 0; muscles.forEach(function (m) { visibleEx(m).forEach(function (e) { sets += e.sets; }); }); return Math.round(sets * 2.5 / 5) * 5; }
+  function scheduleHTML() {
+    var sc = Store.schedule(), days = 0, mins = 0, seen = {};
+    var presets = Data.PRESETS.map(function (pr) { return '<button type="button" class="preset" data-act="sched-preset" data-id="' + pr.id + '" aria-pressed="' + sameSchedule(sc, pr.map) + '"><b>' + esc(pr.name) + '</b><small>' + esc(pr.note) + '</small></button>'; }).join('');
+    var rows = WEEK.map(function (d) {
+      var sel = sc[d] || [], m = sel.length ? sessionMinutes(sel) : 0; if (sel.length) { days++; mins += m; sel.forEach(function (x) { seen[x] = 1; }); }
+      return '<div class="sched-day' + (sel.length ? ' on' : '') + '"><div class="sd-h"><b>' + DAYS[d] + '</b><small>' + (sel.length ? 'About ' + m + ' min' : 'Rest day') + '</small></div><div class="sd-chips" role="group" aria-label="' + DAYS[d] + ' muscles">' +
+        Data.ORDER.map(function (g) { return '<button type="button" class="chip" data-act="sched-chip" data-d="' + d + '" data-m="' + g + '" aria-pressed="' + (sel.indexOf(g) >= 0) + '">' + Data.MUSCLES[g].name + '</button>'; }).join('') + '</div></div>';
+    }).join('');
+    var miss = Data.ORDER.filter(function (g) { return !seen[g]; }).map(mName);
+    return '<div id="sched"><p class="lab" style="margin-top:6px"><span>Start from a template</span></p><div class="presets">' + presets + '</div>' +
+      '<p class="lab" style="margin-top:18px"><span>Or set each day</span><span>Up to 3 muscles a day</span></p><div class="sched">' + rows + '</div>' +
+      '<p class="sched-sum" role="status"><b>' + days + ' training ' + (days === 1 ? 'day' : 'days') + ', ' + (7 - days) + ' rest</b>' + (days ? ' · about ' + mins + ' min a week' : '') + '</p>' +
+      (days === 0 ? '<p class="note"><b class="t">No training days</b>Pick at least one muscle on a day, or choose a template.</p>' : '') +
+      (miss.length && days ? '<p class="muted small-note">Not in your week: ' + miss.join(', ') + '. That is fine if you skip them on purpose. You can still train them any time from Choose a different muscle.</p>' : '') + '</div>';
+  }
+  function equipHTML() {
+    var kinds = [['Barbell', 'Barbell'], ['Dumbbells', 'Dumbbells'], ['Machine', 'Machines'], ['Bodyweight', 'Bodyweight']];
+    return '<div class="chips-row" role="group" aria-label="Equipment you have">' + kinds.map(function (k) {
+      var list = Data.EX.filter(function (e) { return !e.custom && e.equip === k[0]; }), on = list.some(function (e) { return !Store.isHidden(e.id); });
+      return '<button type="button" class="chip" data-act="equip" data-k="' + k[0] + '" aria-pressed="' + on + '">' + k[1] + '</button>'; }).join('') + '</div>';
+  }
+  function weekSummary() { var sc = Store.schedule(), n = Object.keys(sc).length; return n + ' training ' + (n === 1 ? 'day' : 'days') + ' a week'; }
+  var weekOpen = false;
+  function sessionRange() { var sc = Store.schedule(), m = WEEK.filter(function (d) { return sc[d]; }).map(function (d) { return sessionMinutes(sc[d]); }); return m.length ? 'About ' + Math.min.apply(null, m) + (Math.max.apply(null, m) > Math.min.apply(null, m) ? ' to ' + Math.max.apply(null, m) : '') + ' minutes a session.' : ''; }
+  function routineSummaryHTML() {
+    var sc = Store.schedule();
+    return '<ul class="routine">' + WEEK.filter(function (d) { return sc[d]; }).map(function (d) { return '<li><b>' + DAYS[d].slice(0, 3) + '</b><span>' + sc[d].map(mName).join(' + ') + '</span></li>'; }).join('') + '</ul>';
+  }
+  function viewWeek() {
+    if (!weekOpen) {
+      return '<h1>Your week</h1><p class="intro">Here is a normal routine to start with: five training days, one muscle a day, weekends off. Happy with it? Start training. You can change it at any time in the Plan tab.</p>' +
+        '<section class="sec"><h2>Normal routine</h2>' + routineSummaryHTML() + '<p class="muted small-note">' + sessionRange() + '</p></section>' +
+        '<button class="btn primary block" type="button" data-act="week-done" style="margin-top:16px">Start training</button>' +
+        '<button class="btn block" type="button" data-act="week-open" style="margin-top:10px">Customise my week (optional)</button>';
+    }
+    return '<h1>Customise your week</h1><p class="intro">Choose the days you train and what you train on each. A rest day on Sunday, two sessions a week, or every day: it is up to you.</p>' +
+      '<section class="sec"><h2>Your schedule</h2>' + scheduleHTML() + '</section><section class="sec"><h2>Your equipment</h2><p class="sub">Switch off anything your gym does not have. Those exercises stay out of your workouts.</p>' + equipHTML() + '</section>' +
+      '<button class="btn primary block" type="button" data-act="week-done" style="margin-top:16px">Start training</button>' +
+      '<button class="btn block" type="button" data-act="week-reset" style="margin-top:10px">Back to the normal routine</button>';
+  }
+
   /* =========================================================  PICK  */
   function viewPick() {
-    var t = Store.today(), plan = Data.planFor(Store.parse(t).getDay());
-    var h = '<a class="crumb" href="#/">Back to today</a><h1>Which muscle today?</h1><ul class="pick-list">';
+    var t = Store.today();
+    var h = '<a class="crumb" href="#/today">Back to today</a><h1>Which muscle today?</h1><ul class="pick-list">';
     Data.ORDER.forEach(function (id) {
       var m = Data.MUSCLES[id];
-      h += '<li><a href="#/m/' + id + '"><span><span class="nm">' + m.name + '</span><br><span class="sub">' + DAYS[m.day] + ', ' + visibleEx(id).length + ' exercises</span></span>' +
-        (id === plan ? '<span class="tag">Planned today</span>' : '') + '</a></li>';
+      h += '<li><a href="#/m/' + id + '"><span><span class="nm">' + m.name + '</span><br><span class="sub">' + daysText(id) + ', ' + visibleEx(id).length + ' exercises</span></span>' +
+        (Data.planAll(Store.parse(t).getDay()).indexOf(id) >= 0 ? '<span class="tag">Planned today</span>' : '') + '</a></li>';
     });
     return h + '</ul>';
   }
@@ -501,23 +551,39 @@
     return Machines.has(ex.id) ? '<div class="mach">' + (ex.fig ? '' : Machines.svg(ex)) + '<p class="look"><b>Look for:</b> ' + esc(ex.look) + '</p></div>' : '';
   }
 
-  function viewWorkout(id) {
+  /* ----- one exercise at a time, with a rail to jump around ----- */
+  function skipped() { try { var o = JSON.parse(localStorage.getItem('gymtracker.skip')); return o && o.d === Store.today() ? o.ids : []; } catch (e) { return []; } }
+  function setSkipped(ids) { try { localStorage.setItem('gymtracker.skip', JSON.stringify({ d: Store.today(), ids: ids })); } catch (e) {} }
+  function exStatus(ex, t) {
+    var n = Store.setsFor(t, ex.id).length, sk = skipped().indexOf(ex.id) >= 0;
+    return n >= ex.sets ? { cls: 'done', txt: 'Done' } : n ? { cls: 'part', txt: n + ' / ' + ex.sets } : sk ? { cls: 'skip', txt: 'Skipped' } : { cls: '', txt: ex.sets + ' rounds' };
+  }
+  function viewWorkout(id, arg2) {
     var m = Data.MUSCLES[id];
-    if (!m) { return '<a class="crumb" href="#/">Back to today</a><h1>Not found</h1>'; }
-    var exs = visibleEx(id), t = Store.today(), planned = Data.planFor(Store.parse(t).getDay()) === id;
-    var h = '<a class="crumb" href="#/">Back to today</a><h1>' + m.name + '</h1><p class="intro">' + (planned ? 'Planned for today. ' : '') + esc(m.blurb) +
-      ' Rest 60 to 90 seconds between rounds. Pick a weight where your last rep looks like your first.</p>';
-    if (!exs.length) { h += '<p class="empty">All exercises for this muscle are switched off. Turn some on in the Plan tab.</p>'; }
-    exs.forEach(function (ex, i) {
-      h += '<section class="ex" data-ex="' + ex.id + '"><div class="ex-head"><span class="ex-n">' + (i + 1) + '</span><div>' + (i === 0 ? '<span class="badge">Main event</span>' : '') + '<h2>' + esc(ex.name) + '</h2>' +
-        '<p class="ex-meta"><b>' + ex.sets + ' rounds of ' + esc(ex.reps) + (ex.timed ? ' seconds' : ' reps') + '</b>, ' + ex.equip.toLowerCase() + '. ' + esc(ex.target) + '</p>' +
-        (Store.isSuper(ex.id) && i ? '<p class="ss-tag">Superset: do it right after the exercise above, then rest.</p>' : '') + '<p class="ex-note" data-note-for="' + ex.id + '"' + (Store.note(ex.id) ? '' : ' hidden') + '>Note: ' + esc(Store.note(ex.id)) + '</p></div></div>' +
-        '<div class="ex-log">' + loggerHTML(ex) + '</div>' +
-        '<details class="guide hist" data-ex="' + ex.id + '"><summary>History and notes</summary><div class="guide-body">' + historyHTML(ex) + '</div></details>' +
-        '<details class="guide" data-ex="' + ex.id + '"><summary>Form guide</summary>' + guideHTML(ex) + '</details></section>';
-    });
-    h += '<div class="finish"><h3>Finished?</h3><p class="summary" id="sum">' + summaryText(id) + '</p><div class="today-actions"><a class="btn primary" href="#/summary/' + id + '">Finish workout</a></div></div>';
-    h += '<p class="safety">Listen to your body. Stop an exercise if you feel sharp pain, and ask a trainer to check your form on heavy lifts.</p>';
+    if (!m) { return '<a class="crumb" href="#/today">Back to today</a><h1>Not found</h1>'; }
+    var exs = visibleEx(id), t = Store.today(), planned = Data.planAll(Store.parse(t).getDay()).indexOf(id) >= 0;
+    var h = '<a class="crumb" href="#/today">Back to today</a><h1>' + m.name + '</h1><p class="intro">' + (planned ? 'Planned for today. ' : '') + esc(m.blurb) + '</p>';
+    if (!exs.length) { return h + '<p class="empty">All exercises for this muscle are switched off. Turn some on in the Plan tab.</p>'; }
+    // which one: the number in the link, else the first one not finished or skipped
+    var idx = parseInt(arg2, 10) - 1, sk = skipped();
+    if (!(idx >= 0 && idx < exs.length)) { idx = 0; for (var q = 0; q < exs.length; q++) { if (Store.setsFor(t, exs[q].id).length < exs[q].sets && sk.indexOf(exs[q].id) < 0) { idx = q; break; } } }
+    var ex = exs[idx], i = idx, last = idx === exs.length - 1;
+    h += '<div class="wk"><nav class="rail" aria-label="Exercises in this workout"><ol>' + exs.map(function (e, k) {
+      var st = exStatus(e, t);
+      return '<li><a class="ri ' + st.cls + (k === idx ? ' on' : '') + '" href="#/m/' + id + '/' + (k + 1) + '"' + (k === idx ? ' aria-current="step"' : '') + '><span class="rn">' + (st.cls === 'done' ? '✓' : k + 1) + '</span>' + thumbHTML(e, 'rt') + '<span class="rx"><b>' + esc(e.name) + '</b><small>' + st.txt + '</small></span></a></li>';
+    }).join('') + '</ol></nav><div class="wk-main">';
+    h += '<p class="wk-pos">Exercise ' + (idx + 1) + ' of ' + exs.length + '</p>';
+    h += '<section class="ex" data-ex="' + ex.id + '"><div class="ex-head"><span class="ex-n">' + (i + 1) + '</span><div>' + (i === 0 ? '<span class="badge">Main event</span>' : '') + '<h2>' + esc(ex.name) + '</h2>' +
+      '<p class="ex-meta"><b>' + ex.sets + ' rounds of ' + esc(ex.reps) + (ex.timed ? ' seconds' : ' reps') + '</b>, ' + ex.equip.toLowerCase() + '. ' + esc(ex.target) + '</p>' +
+      (Store.isSuper(ex.id) && i ? '<p class="ss-tag">Superset: do it right after the exercise above, then rest.</p>' : '') + '<p class="ex-note" data-note-for="' + ex.id + '"' + (Store.note(ex.id) ? '' : ' hidden') + '>Note: ' + esc(Store.note(ex.id)) + '</p></div></div>' +
+      '<div class="ex-log">' + loggerHTML(ex) + '</div>' +
+      '<details class="guide hist" data-ex="' + ex.id + '"><summary>History and notes</summary><div class="guide-body">' + historyHTML(ex) + '</div></details>' +
+      '<details class="guide" data-ex="' + ex.id + '"><summary>Form guide</summary>' + guideHTML(ex) + '</details></section>';
+    h += '<div class="wk-nav">' + (idx > 0 ? '<a class="btn" href="#/m/' + id + '/' + idx + '">‹ Previous</a>' : '<span></span>') +
+      '<button class="btn" type="button" data-act="wk-skip" data-id="' + ex.id + '" data-to="' + (last ? '' : id + '/' + (idx + 2)) + '">Skip</button>' +
+      (last ? '<a class="btn primary" data-act="wk-next" href="#/summary/' + id + '">Finish workout</a>' : '<a class="btn primary" data-act="wk-next" href="#/m/' + id + '/' + (idx + 2) + '">Next: ' + esc(exs[idx + 1].name) + ' ›</a>') + '</div>';
+    h += '<div class="finish"><h3>Finished early?</h3><p class="summary" id="sum">' + summaryText(id) + '</p><div class="today-actions"><a class="btn small" href="#/summary/' + id + '">Finish workout</a></div></div>';
+    h += '<p class="safety">Listen to your body. Stop an exercise if you feel sharp pain, and ask a trainer to check your form on heavy lifts.</p></div></div>';
     return h;
   }
   function summaryText(muscle) {
@@ -550,7 +616,7 @@
     h += '<div class="sec"><h2>Exercises</h2><ul class="hist-list">' + rows + '</ul></div>';
     summaryText_ = mName(muscle) + ' day, ' + shortDate(t) + ': ' + logs.length + ' sets, ' + vol.toLocaleString() + ' kg lifted' + (mins ? ', about ' + mins + ' min' : '') + ', about ' + Stats.calories(logs, Store.currentKg()) + ' kcal.' +
       (compared ? ' Won ' + beat + ' of ' + compared + ' bouts against last time.' : '') + (prs.length ? ' PRs: ' + prs.map(function (p) { return p.name + ' (' + kgStr(p.set.kg) + ' kg x ' + p.set.reps + ')'; }).join(', ') + '.' : '');
-    return h + '<div class="today-actions"><a class="btn primary" href="#/">Done</a><button class="link" type="button" data-act="copy-summary">Copy summary</button></div>';
+    return h + '<div class="today-actions"><a class="btn primary" href="#/today">Done</a><button class="link" type="button" data-act="copy-summary">Copy summary</button></div>';
   }
 
   /* =========================================================  PROGRESS HELPERS  */
@@ -626,11 +692,19 @@
     return h + '</div>';
   }
 
+  // a compact "tonight" card at the top of Home that opens the Today page
+  function tonightStrip(t) {
+    var info = Store.dayInfo(t), plans = info.plannedAll;
+    if (info.kind === 'done') { return '<a class="tonight done" href="#/today"><span class="badge red">Fight over</span><b>' + esc(info.trained.map(mName).join(' + ')) + ' done today</b><span class="go">See tonight\'s card ›</span></a>'; }
+    if (!plans.length) { var nx = nextCard(t); return '<a class="tonight" href="#/today"><span class="badge">Rest day</span><b>' + (nx ? 'Next: ' + DAYS[Store.parse(nx.date).getDay()] + ', ' + mName(nx.muscle) : 'Nothing planned') + '</b><span class="go">Open Today ›</span></a>'; }
+    return '<a class="tonight" href="#/today"><span class="badge">Tonight</span><b>' + plans.map(mName).join(' + ') + ' night · about ' + sessionMinutes(plans) + ' min</b><span class="go">Enter the ring ›</span></a>';
+  }
+
   /* =========================================================  PROGRESS  */
   function viewProgress() {
     var t = Store.today(), p = Store.profile(), ws = Store.weights();
     var P = dashParts(t);
-    var h = '<h1>Dashboard</h1><div class="dash over"><section class="d-card d-stats">' + P.stats + '</section><section class="tape">' + P.tape + '</section><section class="d-card d-week">' + P.week + '</section><section class="d-card d-last">' + P.last + '</section><section class="d-card d-bal">' + P.bal + '</section></div>' + howSection() + recordsSection() + measuresSection() + friendsSection() + '<div class="sec"><h2>Body weight</h2><p class="sub">Goal ' + kgStr(p.goalKg) + ' kg. Weigh in at the same time of day for a clear trend.</p>';
+    var h = '<h1>Home</h1>' + tonightStrip(t) + '<div class="dash over"><section class="d-card d-stats">' + P.stats + '</section><section class="tape">' + P.tape + '</section><section class="d-card d-week">' + P.week + '</section><section class="d-card d-last">' + P.last + '</section><section class="d-card d-bal">' + P.bal + '</section></div>' + howSection() + recordsSection() + measuresSection() + friendsSection() + '<div class="sec"><h2>Body weight</h2><p class="sub">Goal ' + kgStr(p.goalKg) + ' kg. Weigh in at the same time of day for a clear trend.</p>';
     if (ws.length >= 2) {
       h += Charts.line(ws.map(function (w) { return { x: Store.parse(w.d).getTime() / 864e5, y: w.kg, label: longDate(w.d) + ': ' + kgStr(w.kg) + ' kg' }; }),
         { goal: p.goalKg, unit: ' kg', aria: 'Body weight over time, latest ' + kgStr(ws[ws.length - 1].kg) + ' kilograms, goal ' + kgStr(p.goalKg),
@@ -652,8 +726,8 @@
       Store.allLogs().forEach(function (l) { if (l.d >= s && l.d <= e) { seen[l.d] = 1; } });
       weeks.push({ label: Store.parse(s).getDate() + '/' + (Store.parse(s).getMonth() + 1), value: Object.keys(seen).length });
     }
-    h += '<div class="sec"><h2>Workouts per week</h2><p class="sub">Days trained, last 8 weeks (week start date below each bar). Plan is 5.</p>' +
-      Charts.bars(weeks, { max: 5, aria: 'Workouts per week for the last 8 weeks' }) + '</div>';
+    h += '<div class="sec"><h2>Workouts per week</h2><p class="sub">Days trained, last 8 weeks (week start date below each bar). Your plan is ' + Data.trainingDays() + ' a week.</p>' +
+      Charts.bars(weeks, { max: Math.max(Data.trainingDays(), 1), aria: 'Workouts per week for the last 8 weeks' }) + '</div>';
 
 
     var ids = {}; Store.allLogs().forEach(function (l) { ids[l.e] = 1; });
@@ -685,10 +759,12 @@
   }
   function viewPlan() {
     var p = Store.profile();
-    var h = '<h1>Plan</h1><p class="intro">Monday to Friday, one muscle a day, weekends off. Barbell and dumbbell moves lead. Machine moves are marked: switch off anything your gym does not have.</p>';
+    var h = '<h1>Plan</h1><p class="intro">Set your week, then pick the exercises you want in each muscle. Barbell and dumbbell moves lead. Switch off anything your gym does not have.</p>' +
+      '<details class="sec fold" open><summary><span class="fh"><h2>Your week</h2><small>' + weekSummary() + '</small></span></summary>' + scheduleHTML() + '<p class="lab" style="margin-top:18px"><span>Equipment you have</span></p>' + equipHTML() + '</details>';
     Data.ORDER.forEach(function (id) {
       var m = Data.MUSCLES[id];
-      h += '<div class="plan-day"><p class="dname">' + DAYS[m.day] + '</p><h2>' + m.name + '</h2>';
+      var onN = Data.exercisesFor(id).filter(function (e) { return !Store.isHidden(e.id); }).length, allN = Data.exercisesFor(id).length;
+      h += '<details class="plan-day fold"><summary><span class="fh"><h2>' + m.name + '</h2><small>' + daysText(id) + ' · ' + onN + ' of ' + allN + ' exercises on</small></span></summary>';
       Data.exercisesFor(id).forEach(function (ex, xi) {
         var off = Store.isHidden(ex.id);
         h += '<div class="plan-item"><div class="plan-ex' + (off ? ' off' : '') + '"><label><input type="checkbox" data-f="inc" data-id="' + ex.id + '"' + (off ? '' : ' checked') + '><span class="nm">' + esc(ex.name) + '</span></label>' +
@@ -696,33 +772,33 @@
           (xi ? '<label class="ss"><input type="checkbox" data-f="super" data-id="' + ex.id + '"' + (Store.isSuper(ex.id) ? ' checked' : '') + '> Superset with the exercise above (no rest between)</label>' : '') +
           '</div>';
       });
-      h += '</div>';
+      h += '</details>';
     });
-    h += '<div class="sec"><h2>Add your own exercise</h2><p class="sub">For a move that is not in the list. It appears under the muscle you pick and syncs with your account. History stays if you hide it later.</p>' +
+    h += '<details class="sec fold"><summary><span class="fh"><h2>Add your own exercise</h2></span></summary><p class="sub">For a move that is not in the list. It appears under the muscle you pick and syncs with your account. History stays if you hide it later.</p>' +
       '<div class="fld"><label for="cx-q">Search the exercise library (needs internet)</label><input id="cx-q" class="text-in" type="search" data-f="lib" placeholder="e.g. cable fly"></div><div id="cx-res" class="lib-res"></div>' +
       '<form class="row-form" data-form="custom"><div class="fld"><label for="cx-n">Name</label><input id="cx-n" class="text-in" maxlength="40" required></div>' +
       '<div class="fld"><label for="cx-m">Muscle</label><select id="cx-m" class="text-in">' + Data.ORDER.map(function (g) { return '<option value="' + g + '">' + mName(g) + '</option>'; }).join('') + '</select></div>' +
       '<div class="fld"><label for="cx-e">Equipment</label><select id="cx-e" class="text-in">' + ['Dumbbells', 'Barbell', 'Machine', 'Bodyweight', 'Timed'].map(function (q) { return '<option>' + q + '</option>'; }).join('') + '</select></div>' +
       '<div class="fld"><label for="cx-s">Sets</label><input id="cx-s" class="text-in num" type="number" min="1" max="10" value="3"></div>' +
       '<div class="fld"><label for="cx-r">Reps</label><input id="cx-r" class="text-in" maxlength="8" value="10-12"></div>' +
-      '<button class="btn primary" type="submit">Add</button></form></div>';
-    h += '<div class="sec"><h2>Your goal</h2><div class="row-form"><div class="fld"><label for="sk">Starting weight (kg)</label><input id="sk" class="text-in num" type="number" inputmode="decimal" step="0.1" value="' + kgStr(p.startKg) + '"></div>' +
+      '<button class="btn primary" type="submit">Add</button></form></details>';
+    h += '<details class="sec fold"><summary><span class="fh"><h2>Your goal</h2></span></summary><div class="row-form"><div class="fld"><label for="sk">Starting weight (kg)</label><input id="sk" class="text-in num" type="number" inputmode="decimal" step="0.1" value="' + kgStr(p.startKg) + '"></div>' +
       '<div class="fld"><label for="gk">Goal weight (kg)</label><input id="gk" class="text-in num" type="number" inputmode="decimal" step="0.1" value="' + kgStr(p.goalKg) + '"></div>' +
-      '<button class="btn primary" type="button" data-act="save-goal">Save</button></div></div>';
+      '<button class="btn primary" type="button" data-act="save-goal">Save</button></div></details>';
     var rc = Rest.cfg();
-    h += '<div class="sec"><h2>Rest timer</h2><div class="switch"><span id="rt-l">Start a timer after each set</span><button type="button" role="switch" aria-checked="' + rc.on + '" aria-labelledby="rt-l" data-act="rest-on"></button></div>' +
-      '<div class="modes four" role="group" aria-label="Rest length in seconds" style="margin-top:8px">' + [60, 90, 120, 180].map(function (v) { return '<button type="button" class="chip" data-act="rest-sec" data-v="' + v + '" aria-pressed="' + (rc.sec === v) + '">' + v + ' s</button>'; }).join('') + '</div></div>';
-    h += '<div class="sec"><h2>Appearance</h2><div class="switch"><span id="dm-l">Dark mode</span><button type="button" role="switch" aria-checked="' + isDark() + '" aria-labelledby="dm-l" data-act="theme"></button></div></div>';
-    h += '<div class="sec"><h2>Request a feature or an exercise</h2><p class="sub">Tell me what you want added. It opens a prefilled note on GitHub, or you can copy the text and send it to me.</p>' +
+    h += '<details class="sec fold"><summary><span class="fh"><h2>Rest timer</h2></span></summary><div class="switch"><span id="rt-l">Start a timer after each set</span><button type="button" role="switch" aria-checked="' + rc.on + '" aria-labelledby="rt-l" data-act="rest-on"></button></div>' +
+      '<div class="modes four" role="group" aria-label="Rest length in seconds" style="margin-top:8px">' + [60, 90, 120, 180].map(function (v) { return '<button type="button" class="chip" data-act="rest-sec" data-v="' + v + '" aria-pressed="' + (rc.sec === v) + '">' + v + ' s</button>'; }).join('') + '</div></details>';
+    h += '<details class="sec fold"><summary><span class="fh"><h2>Appearance</h2></span></summary><div class="switch"><span id="dm-l">Dark mode</span><button type="button" role="switch" aria-checked="' + isDark() + '" aria-labelledby="dm-l" data-act="theme"></button></div></details>';
+    h += '<details class="sec fold"><summary><span class="fh"><h2>Request a feature or an exercise</h2></span></summary><p class="sub">Tell me what you want added. It opens a prefilled note on GitHub, or you can copy the text and send it to me.</p>' +
       '<div class="fld"><label for="rq-t">What is it?</label><select id="rq-t" class="text-in"><option>Feature</option><option>Exercise</option><option>Problem with something</option></select></div>' +
       '<div class="fld" style="margin-top:8px"><label for="rq-x">Describe it</label><textarea id="rq-x" class="text-in" rows="3" maxlength="500" placeholder="e.g. Add cable fly for chest, or: show my weekly volume per muscle"></textarea></div>' +
-      '<div class="btns" style="margin-top:10px"><button class="btn small" type="button" data-act="req-send">Open on GitHub</button><button class="link" type="button" data-act="req-copy">Copy text</button></div></div>';
-    h += '<div class="sec"><h2>Install on your phone</h2><p class="sub">' + (window.__installEvt ? 'Add Gym Workout Tracker to your home screen so it opens like an app.' : /iPhone|iPad/.test(navigator.userAgent) ? 'In Safari tap the Share button, then Add to Home Screen.' : 'Open your browser menu and choose Install app or Add to Home screen.') + '</p>' + (window.__installEvt ? '<button class="btn small" type="button" data-act="install">Install</button>' : '') + '</div>';
-    h += '<div class="sec"><h2>Account</h2><p>Signed in as <b>' + esc(Store.user()) + '</b>. <button class="link" type="button" data-act="copy-name">Copy</button></p><p class="small-note">This username is the only key to your workouts. Keep it somewhere safe and private: you need it to sign in on another phone, and anyone who knows it can open your data.</p><p class="sub" id="sync-state">' + esc(syncText()) + '</p>' +
-      '<div class="btns"><button class="btn small" type="button" data-act="sync-now">Sync now</button><button class="link" type="button" data-act="switch-user">Switch user</button></div></div>';
-    h += '<div class="sec"><h2>Your data</h2><p class="sub">Saved on this device and copied to the cloud when online. You can also export a backup file.</p>' +
+      '<div class="btns" style="margin-top:10px"><button class="btn small" type="button" data-act="req-send">Open on GitHub</button><button class="link" type="button" data-act="req-copy">Copy text</button></div></details>';
+    h += '<details class="sec fold"><summary><span class="fh"><h2>Install on your phone</h2></span></summary><p class="sub">' + (window.__installEvt ? 'Add Gym Workout Tracker to your home screen so it opens like an app.' : /iPhone|iPad/.test(navigator.userAgent) ? 'In Safari tap the Share button, then Add to Home Screen.' : 'Open your browser menu and choose Install app or Add to Home screen.') + '</p>' + (window.__installEvt ? '<button class="btn small" type="button" data-act="install">Install</button>' : '') + '</details>';
+    h += '<details class="sec fold"><summary><span class="fh"><h2>Account</h2></span></summary><p>Signed in as <b>' + esc(Store.user()) + '</b>. <button class="link" type="button" data-act="copy-name">Copy</button></p><p class="small-note">This username is the only key to your workouts. Keep it somewhere safe and private: you need it to sign in on another phone, and anyone who knows it can open your data.</p><p class="sub" id="sync-state">' + esc(syncText()) + '</p>' +
+      '<div class="btns"><button class="btn small" type="button" data-act="sync-now">Sync now</button><button class="link" type="button" data-act="switch-user">Switch user</button></div></details>';
+    h += '<details class="sec fold"><summary><span class="fh"><h2>Your data</h2></span></summary><p class="sub">Saved on this device and copied to the cloud when online. You can also export a backup file.</p>' +
       '<div class="btns"><button class="btn small" type="button" data-act="export">Export backup</button><label class="btn small" for="imp" style="cursor:pointer">Import backup</label><input id="imp" type="file" accept="application/json,.json" class="sr" data-f="import">' +
-      '<button class="link danger" type="button" data-act="reset">Erase data on this device</button></div></div>';
+      '<button class="link danger" type="button" data-act="reset">Erase data on this device</button></div></details>';
     return h;
   }
 
@@ -850,18 +926,18 @@
   }
 
   /* =========================================================  ROUTER  */
-  var views = { summary: viewSummary, today: viewToday, pick: viewPick, calendar: viewCalendar, progress: viewProgress, plan: viewPlan, m: viewWorkout };
+  var views = { summary: viewSummary, today: viewToday, pick: viewPick, calendar: viewCalendar, home: viewProgress, progress: viewProgress, plan: viewPlan, m: viewWorkout };
   function route() {
     var parts = (location.hash || '#/').replace(/^#\/?/, '').split('/');
-    var name = parts[0] || 'today';
-    return { name: views[name] ? name : 'today', arg: parts[1] || '' };
+    var name = parts[0] || 'home'; if (name === 'progress') { name = 'home'; }
+    return { name: views[name] ? name : 'today', arg: parts[1] || '', arg2: parts[2] || '' };
   }
   function render(keepScroll) {
     Engine.unmountAll(); if (window.Engine3D) { Engine3D.unmountAll(); }
-    var r = route(), gate = (!Store.user() || login.step === 'loading') ? 'login' : Store.needsSetup() ? 'setup' : '';
+    var r = route(), gate = (!Store.user() || login.step === 'loading') ? 'login' : Store.needsSetup() ? 'setup' : onboardWeek ? 'week' : '';
     document.body.classList.toggle('gated', !!gate); view.setAttribute('data-r', gate || r.name); clearInterval(quoteTimer);
     if (gate || r.name === 'summary') { Rest.hide(); }
-    view.innerHTML = gate ? (gate === 'login' ? viewLogin() : viewSetup()) : views[r.name](r.arg);
+    view.innerHTML = gate ? (gate === 'login' ? viewLogin() : gate === 'week' ? viewWeek() : viewSetup()) : views[r.name](r.arg, r.arg2);
     document.querySelectorAll('.tabs a').forEach(function (a) {
       var on = a.dataset.tab === (r.name === 'm' || r.name === 'pick' || r.name === 'summary' ? 'today' : r.name);
       if (on) { a.setAttribute('aria-current', 'page'); } else { a.removeAttribute('aria-current'); }
@@ -869,7 +945,7 @@
     view.querySelectorAll('.muscles').forEach(function (box) { showMuscle(box, box.closest('details') ? Data.byId[box.closest('details').dataset.ex].mus.view : 'front'); });
     startQuotes(); var meEl = document.getElementById('me'); if (meEl) { meEl.textContent = Store.user() || ''; }
     if (!keepScroll) { window.scrollTo(0, 0); }
-    var title = { today: 'Today', pick: 'Choose a muscle', calendar: 'Calendar', progress: 'Dashboard', plan: 'Plan', m: r.arg && Data.MUSCLES[r.arg] ? Data.MUSCLES[r.arg].name : 'Workout', summary: 'Summary' }[r.name];
+    var title = { today: 'Today', pick: 'Choose a muscle', calendar: 'Calendar', home: 'Home', plan: 'Plan', m: r.arg && Data.MUSCLES[r.arg] ? Data.MUSCLES[r.arg].name : 'Workout', summary: 'Summary' }[r.name];
     document.title = gate ? 'Gym Workout Tracker' : title + ' | Gym Workout Tracker';
   }
   function showMuscle(box, v) {
@@ -885,6 +961,8 @@
     sec.innerHTML = loggerHTML(ex);
     if (act === 'log') { var b = sec.querySelector('[data-act="log"]'); if (b) { b.focus({ preventScroll: true }); } }
     var s = document.getElementById('sum'); if (s) { s.textContent = summaryText(ex.muscle); }
+    var ri = view.querySelector('.ri.on');   // keep the rail in step with the rounds just logged
+    if (ri) { var st = exStatus(ex, Store.today()); ri.className = 'ri ' + st.cls + ' on'; ri.querySelector('small').textContent = st.txt; ri.querySelector('.rn').textContent = st.cls === 'done' ? '✓' : (Array.prototype.indexOf.call(ri.closest('ol').children, ri.parentNode) + 1); }
   }
 
   /* =========================================================  EVENTS  */
@@ -917,7 +995,9 @@
         if (wasLast && wasLast.sets[doneSets.length]) { draft[exId] = { reps: wasLast.sets[doneSets.length].reps, kg: wasLast.sets[doneSets.length].kg }; } // preload the next set from last time
         var ord = visibleEx(ex.muscle), oi = ord.map(function (e) { return e.id; }).indexOf(exId);
         if (!(ord[oi + 1] && Store.isSuper(ord[oi + 1].id))) { Rest.start(); }   // superset: go straight to the next exercise
-        refreshLogger(exId); break;
+        refreshLogger(exId);
+        if (doneSets.length === ex.sets) { toast('Exercise done. Tap Next when you are ready.'); var nb = view.querySelector('[data-act="wk-next"]'); if (nb) { nb.classList.add('ready'); } }
+        break;
       case 'repeat':
         var lt = Store.lastSession(exId, Store.today()), have = Store.setsFor(Store.today(), exId).length, exr = Data.byId[exId], added = 0;
         if (lt) { lt.sets.slice(have).forEach(function (st) { Store.addSet(Store.today(), exr.muscle, exId, st.reps, st.kg); added++; }); }
@@ -930,6 +1010,22 @@
         else if (navigator.clipboard) { navigator.clipboard.writeText(rt + ': ' + rbody).then(function () { toast('Copied'); }, function () { toast('Could not copy'); }); }
         break;
       case 'quote': nextQuote(); startQuotes(); break;
+      case 'wk-skip':
+        var sks = skipped(); if (sks.indexOf(el.dataset.id) < 0) { sks.push(el.dataset.id); setSkipped(sks); }
+        toast('Skipped. You can come back to it from the list.'); location.hash = el.dataset.to ? '#/m/' + el.dataset.to : '#/summary/' + (Data.byId[el.dataset.id] || {}).muscle; break;
+      case 'sched-chip':
+        var sch = Store.schedule(), dd = +el.dataset.d, list = (sch[dd] || []).slice(), at = list.indexOf(el.dataset.m);
+        if (at >= 0) { list.splice(at, 1); } else if (list.length >= 3) { toast('Three muscles is the most for one day'); break; } else { list.push(el.dataset.m); }
+        if (list.length) { sch[dd] = list; } else { delete sch[dd]; }
+        Store.setSchedule(sch); document.getElementById('sched').outerHTML = scheduleHTML(); break;
+      case 'sched-preset':
+        var pr = Data.PRESETS.filter(function (x) { return x.id === el.dataset.id; })[0]; if (pr) { Store.setSchedule(pr.map); document.getElementById('sched').outerHTML = scheduleHTML(); toast('Week set: ' + pr.name); } break;
+      case 'equip':
+        var on = el.getAttribute('aria-pressed') === 'true'; Data.EX.forEach(function (e) { if (!e.custom && e.equip === el.dataset.k) { Store.setHidden(e.id, on); } });
+        el.setAttribute('aria-pressed', String(!on)); break;
+      case 'week-done': onboardWeek = false; weekOpen = false; location.hash = '#/'; render(); break;
+      case 'week-open': weekOpen = true; render(); break;
+      case 'week-reset': Store.setSchedule(Data.DEFAULT_SCHEDULE); Data.EX.forEach(function (e) { if (!e.custom) { Store.setHidden(e.id, false); } }); weekOpen = false; render(); break;
       case 'use-name': var ui = document.getElementById('un'); ui.value = el.dataset.v; login.name = el.dataset.v; updateUn(false); ui.focus(); break;
       case 'shuffle-names': document.getElementById('un-chips').innerHTML = suggestNames().map(function (n) { return '<button type="button" class="chip" data-act="use-name" data-v="' + n + '">' + n + '</button>'; }).join(''); break;
       case 'memo-back': loginReset(); render(true); break;
@@ -1050,7 +1146,7 @@
       e.preventDefault();
       var now = num(document.getElementById('su-now').value), goal = num(document.getElementById('su-goal').value);
       if (!(now >= 20 && now <= 400) || !(goal >= 20 && goal <= 400)) { document.getElementById('setup-err').textContent = 'Enter both weights in kg.'; return; }
-      Store.setProfile({ startKg: now, goalKg: goal }); Store.addWeight(Store.today(), now); location.hash = '#/'; render();
+      Store.setProfile({ startKg: now, goalKg: goal }); Store.addWeight(Store.today(), now); onboardWeek = true; location.hash = '#/'; render();
     } else if (f === 'measure') {
       var md = document.getElementById('ms-d').value, mv = { d: md };
       ['waist', 'chest', 'arm'].forEach(function (k) { var v = parseFloat(document.getElementById('ms-' + k).value); if (v >= 10 && v <= 250) { mv[k] = Math.round(v * 10) / 10; } });

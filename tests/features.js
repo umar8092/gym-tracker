@@ -55,7 +55,7 @@ const URL = process.env.URL || 'http://localhost:8765/index.html', OUT = '/tmp/g
   await page.locator('[data-act="mode"][data-v="30"]').click(); await page.waitForTimeout(200);
   ok(await page.locator('.empty').first().count() >= 0, '30-day view renders');
   // rest timer settings
-  await page.goto(URL + '#/plan'); await page.locator('[data-act="rest-sec"][data-v="60"]').click();
+  await page.goto(URL + '#/plan'); await page.evaluate(() => { document.querySelectorAll('details.fold').forEach(d => { d.open = true; }); }); await page.locator('[data-act="rest-sec"][data-v="60"]').click();
   ok(await page.evaluate(() => JSON.parse(localStorage.getItem('gymtracker.rest')).sec) === 60, 'rest length setting is saved');
   await page.locator('[data-act="rest-on"]').click(); ok(await page.evaluate(() => JSON.parse(localStorage.getItem('gymtracker.rest')).on) === false, 'rest timer can be switched off');
   console.log(fails.length ? '\nFAILURES:\n' + fails.join('\n') : '\nfeature tests OK'); await b.close(); process.exit(fails.length ? 1 : 0);

@@ -23,7 +23,7 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
   // A: brand new device, new user -> setup screen
   const A = await device(); await login(A.p, 'umar');
   ok(await A.p.locator('form[data-form="setup"]').count() === 1, 'new user sees the setup screen');
-  await A.p.fill('#su-now', '92'); await A.p.fill('#su-goal', '75'); await A.p.click('form[data-form="setup"] button'); await A.p.waitForTimeout(300);
+  await A.p.fill('#su-now', '92'); await A.p.fill('#su-goal', '75'); await A.p.click('form[data-form="setup"] button'); await A.p.click('[data-act="week-done"]'); await A.p.waitForTimeout(300);
   await logSet(A.p, 10); await A.p.waitForTimeout(2200); await synced(A.p);
   ok([...cloud.docs.keys()].some(k => k.startsWith('/users/umar/logs/')), 'set reached the cloud under users/umar');
   ok(cloud.docs.has('/users/umar/meta/settings'), 'profile/settings reached the cloud');
@@ -44,7 +44,7 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
   // another user is isolated
   const C = await device(); await login(C.p, 'sam');
   ok(await C.p.locator('form[data-form="setup"]').count() === 1, 'a different user starts fresh');
-  await C.p.fill('#su-now', '80'); await C.p.fill('#su-goal', '72'); await C.p.click('form[data-form="setup"] button'); await C.p.waitForTimeout(300);
+  await C.p.fill('#su-now', '80'); await C.p.fill('#su-goal', '72'); await C.p.click('form[data-form="setup"] button'); await C.p.click('[data-act="week-done"]'); await C.p.waitForTimeout(300);
   ok(await setsToday(C.p) === 0, 'sam does not see umar\'s sets');
 
   // open sign-up: a brand-new name just works, an invalid name is refused before any request

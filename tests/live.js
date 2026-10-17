@@ -27,7 +27,7 @@ const call = (t, path, body, method = 'POST') => fetch(BASE + path, { method, he
   const ui = 'zz_ui_' + Math.random().toString(36).slice(2, 8);
   const A = await dev(); await A.goto(URL + '#/'); await A.fill('#un', ui); await A.click('form[data-form="login"] button[type="submit"]'); await A.check('#memo-ok'); await A.click('#memo-go'); await A.waitForSelector('form[data-form="setup"]', { timeout: 15000 }).catch(() => {});
   ok(await A.locator('form[data-form="setup"]').count() === 1, 'real cloud: new username reaches the setup screen');
-  await A.fill('#su-now', '90'); await A.fill('#su-goal', '80'); await A.click('form[data-form="setup"] button');
+  await A.fill('#su-now', '90'); await A.fill('#su-goal', '80'); await A.click('form[data-form="setup"] button'); await A.click('[data-act="week-done"]');
   await A.goto(URL + '#/m/shoulders'); const s = A.locator('section.ex').first(); await s.locator('[data-act="kgset"][data-v="10"]').first().click(); await s.locator('[data-act="log"]').click();
   await A.waitForTimeout(2500); await synced(A);
   ok(await A.evaluate(() => Sync.status().state) === 'synced', 'real cloud: device A synced without errors');

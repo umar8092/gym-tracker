@@ -17,10 +17,10 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
   ok(/0\.5 kg a week down/.test(tr) && /(reach 75 kg|Goal) around/.test(tr), 'weight trend shows pace and goal date: ' + tr);
   ok((await page.locator('.bal li').count()) === 5 && (await page.locator('.bal li').first().locator('b').textContent()) === '2', 'muscle balance lists 5 muscles, chest has 2 sets');
   // custom exercise
-  await page.goto(URL + '#/plan');
+  await page.goto(URL + '#/plan'); await page.evaluate(() => { document.querySelectorAll('details.fold').forEach(d => { d.open = true; }); });
   await page.fill('#cx-n', 'Cable crossover'); await page.selectOption('#cx-m', 'chest'); await page.selectOption('#cx-e', 'Machine');
   await page.locator('form[data-form="custom"] button[type="submit"]').click(); await page.waitForTimeout(300);
-  await page.goto(URL + '#/m/chest'); await page.waitForTimeout(300);
+  await page.goto(URL + '#/m/chest/6'); await page.waitForTimeout(300);
   const ex = page.locator('section.ex', { hasText: 'Cable crossover' });
   ok(await ex.count() === 1, 'custom exercise appears under its muscle');
   await ex.locator('[data-f="kg"]').fill('20'); await ex.locator('[data-f="reps"]').fill('10'); await ex.locator('[data-act="log"]').click(); ok(await ex.locator('.sets li').count() === 1, 'a set can be logged on it');
@@ -33,7 +33,7 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
   const bs = page.locator('section.ex').first(); await bs.locator('[data-f="kg"]').fill('60'); await bs.locator('[data-act="warm"]').click();
   ok((await bs.locator('.warmup').textContent()).includes('8 × 30 kg, 5 × 42.5 kg, 3 × 50 kg'), 'warm-up ramp shows for 60 kg');
   // rotating quote card: one at a time, tap shows another
-  await page.goto(URL + '#/'); await page.waitForTimeout(400);
+  await page.goto(URL + '#/today'); await page.waitForTimeout(400);
   const q1 = await page.locator('.d-quote .quote').textContent(); await page.locator('.d-quote').click(); await page.waitForTimeout(500);
   const q2 = await page.locator('.d-quote .quote').textContent();
   ok(await page.locator('.d-quote').count() === 1 && q1 !== q2, 'one quote card, tap shows a different quote: ' + q2);

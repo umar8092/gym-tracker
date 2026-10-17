@@ -19,7 +19,7 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
   const armsLogs = [14, 7].flatMap(n => [0, 1, 2].map(() => lg(FRI, n, 'barbell-curl', 'arms', n === 7 ? 11 : 10, 30)));
 
   // 1. a planned day: arms night. Main event first, undercard below, tale of the tape, fight week.
-  let p = await open(390, 844, FRI, '#/', { logs: armsLogs, weights, profile });
+  let p = await open(390, 844, FRI, '#/today', { logs: armsLogs, weights, profile });
   ok((await p.locator('.ticker').textContent()).includes('Arms night') && (await p.locator('.ticker').textContent()).includes('6 bouts'), 'ticker names the muscle and counts the bouts');
   ok((await p.locator('.main-event .badge').textContent()).trim() === 'Main event' && (await p.locator('.main-event h1').textContent()).includes('Barbell curl'), 'the first exercise is the main event');
   ok((await p.locator('.main-event .vs').textContent()).includes('You') && (await p.locator('.main-event .facts').textContent()).includes('11 × 30'), 'main event shows the opponent: last time\'s best round');
@@ -35,32 +35,32 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
   await p.context().close();
 
   // 2. laptop: top bar, two columns
-  p = await open(1440, 900, FRI, '#/', { logs: armsLogs, weights, profile });
+  p = await open(1440, 900, FRI, '#/today', { logs: armsLogs, weights, profile });
   ok(await p.locator('.tabs').evaluate(e => getComputedStyle(e).position) === 'sticky' && (await p.locator('#me').textContent()) === 'umar', 'laptop: sticky top bar with the user name');
   const cols = await p.evaluate(() => { const a = document.querySelector('.t-main').getBoundingClientRect(), s = document.querySelector('.side').getBoundingClientRect(); return [a.right <= s.left + 1, s.width > 380]; });
   ok(cols[0] && cols[1], 'laptop: the card and the side column sit next to each other');
   await p.context().close();
 
   // 3. done today
-  p = await open(390, 844, FRI, '#/', { logs: armsLogs.concat([lg(FRI, 0, 'barbell-curl', 'arms', 12, 30), lg(FRI, 0, 'barbell-curl', 'arms', 12, 30)]), weights, profile });
+  p = await open(390, 844, FRI, '#/today', { logs: armsLogs.concat([lg(FRI, 0, 'barbell-curl', 'arms', 12, 30), lg(FRI, 0, 'barbell-curl', 'arms', 12, 30)]), weights, profile });
   ok((await p.locator('.main-event').textContent()).includes('Fight over') && (await p.locator('.bout .res').first().textContent()).trim() === 'Won', 'done today: fight over, the bout is won against last time');
   await p.context().close();
 
   // 4. rest day names the next card
-  p = await open(390, 844, SAT, '#/', { logs: [], weights, profile });
+  p = await open(390, 844, SAT, '#/today', { logs: [], weights, profile });
   ok((await p.locator('.main-event').textContent()).includes('Next card: Monday, Chest'), 'rest day shows the next card');
   ok(await p.locator('a', { hasText: 'Train anyway' }).count() === 1, 'rest day still offers to train anyway');
   await p.context().close();
 
   // 5. every exercise hidden
-  p = await open(390, 844, FRI, '#/', { logs: [], weights, profile, hidden: Object.fromEntries(['barbell-curl', 'hammer-curl', 'close-grip-bench', 'overhead-triceps-extension', 'lying-triceps-extension', 'cable-pushdown'].map(k => [k, true])) });
+  p = await open(390, 844, FRI, '#/today', { logs: [], weights, profile, hidden: Object.fromEntries(['barbell-curl', 'hammer-curl', 'close-grip-bench', 'overhead-triceps-extension', 'lying-triceps-extension', 'cable-pushdown'].map(k => [k, true])) });
   ok((await p.locator('.main-event').textContent()).includes('switched off'), 'empty card explains that all exercises are switched off');
   await p.context().close();
 
   // 6. dashboard: tape + record, fight words, theme switch
   p = await open(1440, 900, FRI, '#/progress', { logs: armsLogs, weights, profile });
   ok((await p.locator('.dash.over .tape').textContent()).includes('Record W–L–D') && (await p.locator('.d-week .wd').count()) === 5, 'dashboard: tale of the tape with the record, and the fight week');
-  await p.goto(URL + '#/plan'); await p.waitForTimeout(300);
+  await p.goto(URL + '#/plan'); await p.waitForTimeout(300); await p.evaluate(() => { document.querySelectorAll('details.fold').forEach(d => { d.open = true; }); });
   const before = await p.evaluate(() => document.documentElement.getAttribute('data-theme'));
   await p.locator('[data-act="theme"]').click();
   const after = await p.evaluate(() => [document.documentElement.getAttribute('data-theme'), getComputedStyle(document.body).backgroundColor]);
@@ -73,6 +73,46 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
   await p.locator('section.ex').first().locator('[data-act="log"]').click(); await p.waitForTimeout(200);
   ok((await p.locator('section.ex').first().locator('.sn').first().textContent()).trim() === 'Round 1', 'logged rounds are numbered');
   ok((await p.locator('#rest-t').textContent()).startsWith('Rest'), 'rest timer starts after the round');
+  await p.context().close();
+
+  // 8. one exercise at a time with a rail
+  p = await open(390, 844, FRI, '#/m/arms', { logs: armsLogs, weights, profile });
+  ok((await p.locator('section.ex').count()) === 1 && (await p.locator('.rail .ri').count()) === 6, 'workout shows one exercise and a rail of six');
+  ok((await p.locator('.wk-pos').textContent()).includes('1 of 6') && (await p.locator('.ri.on').count()) === 1, 'position is shown and the current exercise is marked');
+  await p.locator('[data-act="wk-next"]').click(); await p.waitForTimeout(250);
+  ok((await p.locator('section.ex h2').textContent()).includes('hammer') || (await p.locator('section.ex h2').textContent()).toLowerCase().includes('hammer'), 'Next opens the second exercise');
+  await p.locator('.rail .ri').nth(3).click(); await p.waitForTimeout(250);
+  ok((await p.locator('.wk-pos').textContent()).includes('4 of 6'), 'the rail jumps straight to the fourth exercise');
+  await p.locator('[data-act="wk-skip"]').click(); await p.waitForTimeout(300);
+  ok((await p.locator('.wk-pos').textContent()).includes('5 of 6') && (await p.locator('.rail .ri.skip').count()) === 1, 'Skip moves on and marks the exercise as skipped in the rail');
+  await p.locator('.rail .ri').nth(5).click(); await p.waitForTimeout(250);
+  ok((await p.locator('[data-act="wk-next"]').textContent()).includes('Finish workout'), 'the last exercise offers Finish workout');
+  await p.locator('.rail .ri').first().click(); await p.locator('section.ex [data-act="log"]').click(); await p.locator('section.ex [data-act="log"]').click(); await p.locator('section.ex [data-act="log"]').click(); await p.waitForTimeout(300);
+  ok((await p.locator('.rail .ri').first().locator('small').textContent()).includes('Done') && (await p.locator('.rail .ri.done').count()) === 1, 'finishing all rounds marks the exercise Done in the rail');
+  await p.context().close();
+
+  // 9. custom week: a 3-day plan with two muscles on one day, and a 7-day plan
+  const sat = new Date('2026-10-17T10:00:00');
+  p = await open(390, 844, FRI, '#/today', { logs: [], weights, profile, schedule: { 5: ['chest', 'back'], 6: ['legs'] } });
+  ok((await p.locator('.ticker').textContent()).includes('Chest + Back night') && (await p.locator('.bout').count()) === 9, 'a day with two muscles shows both on the card (5 chest + 5 back, one is the main event)');
+  ok((await p.locator('.bout').nth(5).getAttribute('href')) === '#/m/back', 'rows from the second muscle open that muscle');
+  ok((await p.locator('.fweek .wd').count()) === 2, 'fight week only lists the training days');
+  await p.context().close();
+  p = await open(390, 844, SAT, '#/today', { logs: [], weights, profile, schedule: { 5: ['chest', 'back'], 6: ['legs'], 0: ['arms'] } });
+  ok((await p.locator('.main-event h1').textContent()).toLowerCase().includes('squat'), 'a Saturday leg day works (weekend training)');
+  await p.context().close();
+  p = await open(390, 844, FRI, '#/today', { logs: [], weights, profile, schedule: {} });
+  ok((await p.locator('.main-event').textContent()).includes('Rest day'), 'a week with no training days is just rest days');
+  await p.context().close();
+  p = await open(390, 844, FRI, '#/plan', { logs: [], weights, profile });
+  ok((await p.locator('details.fold').count()) >= 13 && (await p.locator('details.fold[open]').count()) === 1, 'plan page: every section is collapsible and only Your week starts open');
+  ok((await p.locator('details.plan-day summary small').first().textContent()).includes('5 of 5 exercises on'), 'a folded muscle summarises its days and exercises');
+  ok(!(await p.locator('details.plan-day').first().evaluate(e => e.open)), 'muscle lists start folded');
+  await p.locator('details.plan-day summary').first().click(); ok((await p.locator('details.plan-day').first().locator('input[data-f="inc"]').first().isVisible()), 'tapping a muscle opens its exercise list');
+  ok((await p.locator('.sched-day').count()) === 7 && (await p.locator('.sched-sum').textContent()).includes('5 training days'), 'plan page shows the schedule editor with the normal 5-day week');
+  await p.click('[data-act="sched-preset"][data-id="seven"]'); ok((await p.locator('.sched-sum').textContent()).includes('7 training days'), '7-day template');
+  await p.click('[data-act="sched-preset"][data-id="two"]'); ok((await p.locator('.sched-sum').textContent()).includes('2 training days'), '2-day template');
+  ok(JSON.parse(await p.evaluate(() => localStorage.getItem('gymtracker.v2.umar'))).schedule['1'].length === 3, 'the schedule is saved with the account');
   await p.context().close();
 
   console.log(fails.length ? '\nFAILURES:\n' + fails.join('\n') : '\nv3 UI tests OK'); await b.close(); process.exit(fails.length ? 1 : 0);
