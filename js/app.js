@@ -24,47 +24,78 @@
 
   /* =========================================================  TODAY  */
   function viewToday() {
-    var t = Store.today(), info = Store.dayInfo(t), d = Store.parse(t);
-    var plan = Data.planFor(d.getDay());
-    var h = '<p class="date-line">' + longDate(t) + '</p><div class="today-main">';
-    if (info.kind === 'done') {
-      var logs = Store.logsOn(t), names = info.trained.map(mName).join(' and ');
-      h += '<h1>' + esc(names) + '</h1><p class="lead">' + logs.length + ' sets logged today, ' + Math.round(Store.volume(logs)).toLocaleString() + ' kg lifted in total.</p>' +
-        '<p class="done-note">Today is done. Nice work.</p>' +
-        '<div class="today-actions"><a class="btn primary" href="#/m/' + info.trained[0] + '">Add more sets</a><a class="link" href="#/pick">Train another muscle</a></div>';
-    } else if (plan) {
-      h += '<h1>' + mName(plan) + '</h1><p class="lead">' + esc(Data.MUSCLES[plan].blurb) + ' ' + visibleEx(plan).length + ' exercises.</p>' +
-        '<div class="today-actions"><a class="btn primary" href="#/m/' + plan + '">Start ' + mName(plan).toLowerCase() + '</a><a class="link" href="#/pick">Choose a different muscle</a></div>' + catchUp(t);
-    } else {
-      h += '<h1>Rest day</h1><p class="lead">Nothing is planned today. Recovery is part of the plan.</p>' +
-        '<div class="today-actions"><a class="btn" href="#/pick">Train anyway</a></div>' + catchUp(t);
-    }
-    h += '</div>';
+    var t = Store.today(), info = Store.dayInfo(t), d = Store.parse(t), plan = Data.planFor(d.getDay()), all = Store.allLogs();
+    var ws = weekStart(t), we = Store.addDays(ws, 6), p = Store.profile(), cur = Store.currentKg();
 
-    var ws = weekStart(t), cells = '';
-    for (var i = 0; i < 5; i++) {
+    /* --- today card: what to work on, the exercises, the how-to --- */
+    var hero = '<p class="date-line">' + longDate(t) + '</p>';
+    if (info.kind === 'done') {
+      var logs = Store.logsOn(t);
+      hero += '<h1>' + esc(info.trained.map(mName).join(' and ')) + ' done</h1><p class="lead">' + logs.length + ' sets logged, ' + Math.round(Store.volume(logs)).toLocaleString() + ' kg lifted today. Nice work.</p>' +
+        '<div class="today-actions"><a class="btn primary" href="#/m/' + info.trained[0] + '">Add more sets</a><a class="link" href="#/summary/' + info.trained[0] + '">See today\'s summary</a><a class="link" href="#/pick">Train another muscle</a></div>';
+    } else if (plan) {
+      var exs = visibleEx(plan);
+      hero += '<h1>' + mName(plan) + ' day</h1><p class="lead">' + esc(Data.MUSCLES[plan].blurb) + '</p>' +
+        '<ul class="ex-chips" aria-label="Today\'s exercises">' + exs.map(function (e) { return '<li>' + esc(e.name) + '<small>' + e.sets + ' × ' + esc(e.reps) + '</small></li>'; }).join('') + '</ul>' +
+        '<div class="today-actions"><a class="btn primary" href="#/m/' + plan + '">Start ' + mName(plan).toLowerCase() + '</a><a class="link" href="#/pick">Choose a different muscle</a></div>';
+    } else {
+      hero += '<h1>Rest day</h1><p class="lead">Nothing is planned today. Recovery is part of the plan.</p><div class="today-actions"><a class="btn" href="#/pick">Train anyway</a></div>';
+    }
+    hero += catchUp(t) +
+      '<details class="howto"><summary>How a session works</summary><ol><li>Warm up with 1 or 2 light sets of your first exercise.</li><li>Log each set right after you finish it: reps, then kg.</li><li>Rest 60 to 90 seconds. Pick a weight where your last rep looks like your first.</li><li>Open Form guide on any exercise to rotate the 3D figure and check your position.</li><li>Tap Finish workout to see how you did against last time.</li></ol></details>';
+
+    /* --- weight / goal --- */
+    var total = p.startKg - p.goalKg, pct = total > 0 ? Math.max(0, Math.min(1, (p.startKg - cur) / total)) : 0, ws2 = Store.weights(), tr = Stats.trend(ws2, p.goalKg, t);
+    var goal = '<h2>Weight</h2><div class="goal-top"><h3>' + kgStr(cur) + ' kg now, goal ' + kgStr(p.goalKg) + ' kg</h3><a class="link" href="#/progress">Log weight</a></div>' +
+      '<div class="goal-bar" role="img" aria-label="' + Math.round(pct * 100) + ' percent of the way to your goal weight"><i style="width:' + Math.round(pct * 100) + '%"></i></div>' +
+      '<p class="muted" style="margin-top:8px">' + (cur > p.goalKg ? kgStr(cur - p.goalKg) + ' kg to go' : 'Goal reached') + '</p>';
+    if (tr) { goal += '<p class="trend">Trend: ' + kgStr(Math.abs(tr.perWeek)) + ' kg a week ' + (tr.perWeek < 0 ? 'down' : 'up') + (tr.etaDays ? '. Goal around ' + longDate(Store.addDays(t, tr.etaDays)) + '.' : '.') + '</p>'; }
+    if (ws2.length >= 2) {
+      goal += Charts.line(ws2.slice(-30).map(function (w) { return { x: Store.parse(w.d).getTime() / 864e5, y: w.kg, label: longDate(w.d) + ': ' + kgStr(w.kg) + ' kg' }; }),
+        { goal: p.goalKg, unit: ' kg', aria: 'Body weight, latest ' + kgStr(cur) + ' kilograms, goal ' + kgStr(p.goalKg), xLabel: function (x) { var dd = new Date(x * 864e5); dd = new Date(dd.getUTCFullYear(), dd.getUTCMonth(), dd.getUTCDate()); return dd.getDate() + ' ' + MONTHS[dd.getMonth()].slice(0, 3); } });
+    }
+
+    /* --- week strip + stats --- */
+    var cells = '', i;
+    for (i = 0; i < 5; i++) {
       var ds = Store.addDays(ws, i), inf = Store.dayInfo(ds), pm = inf.planned;
       var label = inf.kind === 'done' ? 'Done' : inf.kind === 'missed' ? 'Missed' : inf.kind === 'madeup' ? 'Made up' : inf.kind === 'today' ? 'Today' : '';
-      var shown = inf.trained.length ? inf.trained[0] : pm;
-      cells += '<a class="wd ' + inf.kind + '" href="#/calendar/' + ds + '"><span class="dn">' + DAYS[(i + 1) % 7].slice(0, 3) + '</span><span class="mn">' + mName(shown) + '</span><span class="st">' + (label || '&nbsp;') + '</span></a>';
+      cells += '<a class="wd ' + inf.kind + '" href="#/calendar/' + ds + '"><span class="dn">' + DAYS[(i + 1) % 7].slice(0, 3) + '</span><span class="mn">' + mName(inf.trained.length ? inf.trained[0] : pm) + '</span><span class="st">' + (label || '&nbsp;') + '</span></a>';
     }
-    h += '<div class="week" aria-label="This week">' + cells + '</div>';
-
-    var all = Store.allLogs(), mo = t.slice(0, 7), days = {};
+    var mo = t.slice(0, 7), days = {}, weekLogs = all.filter(function (l) { return l.d >= ws && l.d <= we; }), prs = 0, vol = Math.round(Store.volume(weekLogs));
     all.forEach(function (l) { if (l.d.slice(0, 7) === mo) { days[l.d] = 1; } });
-    var setsWeek = all.filter(function (l) { return l.d >= ws && l.d <= Store.addDays(ws, 6); }).length;
-    h += '<div class="stats"><div><b class="num">' + Store.streak() + '</b><span>Day streak</span></div>' +
-      '<div><b class="num">' + Object.keys(days).length + '</b><span>Sessions this month</span></div>' +
-      '<div><b class="num">' + setsWeek + '</b><span>Sets this week</span></div></div>';
+    weekLogs.forEach(function (l) { if (Stats.prFor(l, exLogs(l.e))) { prs++; } });
+    var week = '<h2>This week</h2><div class="week" aria-label="This week">' + cells + '</div>' +
+      '<div class="stats four"><div><b class="num">' + Store.streak() + '</b><span>Day streak</span></div><div><b class="num">' + Object.keys(days).length + '</b><span>Sessions this month</span></div>' +
+      '<div><b class="num">' + weekLogs.length + '</b><span>Sets this week</span></div><div><b class="num">' + prs + '</b><span>New PRs this week</span></div></div>' +
+      '<p class="muted" style="margin-top:10px">' + vol.toLocaleString() + ' kg lifted this week.</p>';
 
-    var p = Store.profile(), cur = Store.currentKg(), total = p.startKg - p.goalKg;
-    var pct = total > 0 ? Math.max(0, Math.min(1, (p.startKg - cur) / total)) : 0;
-    h += '<div class="goal"><div class="goal-top"><h3>' + kgStr(cur) + ' kg now, goal ' + kgStr(p.goalKg) + ' kg</h3><a class="link" href="#/progress">Log weight</a></div>' +
-      '<div class="goal-bar" role="img" aria-label="' + Math.round(pct * 100) + ' percent of the way to your goal weight"><i style="width:' + Math.round(pct * 100) + '%"></i></div>' +
-      '<p class="muted" style="margin-top:8px">' + (cur > p.goalKg ? kgStr(cur - p.goalKg) + ' kg to go' : 'Goal reached') + '</p></div>';
+    /* --- last session --- */
+    var lastD = '', lastLogs;
+    all.forEach(function (l) { if (l.d <= t && l.d > lastD) { lastD = l.d; } });
+    var last = '<h2>Last session</h2>';
+    if (!lastD) { last += '<p class="empty">Log your first set and your last session shows up here with how it compared to the time before.</p>'; }
+    else {
+      lastLogs = Store.logsOn(lastD); var ids = [], up = 0, down = 0, cmp = 0;
+      lastLogs.forEach(function (l) { if (ids.indexOf(l.e) < 0) { ids.push(l.e); } });
+      ids.forEach(function (id) { var ss = Stats.sessions(id, all), c = ss.filter(function (x) { return x.date === lastD; })[0], pv = ss.filter(function (x) { return x.date < lastD; }).pop(); if (c && pv) { cmp++; var v = Stats.compare(c, pv).verdict; if (v === 'up') { up++; } else if (v === 'down') { down++; } } });
+      var ms = []; lastLogs.forEach(function (l) { if (ms.indexOf(l.m) < 0) { ms.push(l.m); } });
+      last += '<p><b>' + esc(ms.map(mName).join(' and ')) + '</b>, ' + (lastD === t ? 'today' : longDate(lastD)) + '</p><p class="muted">' + lastLogs.length + ' sets, ' + Math.round(Store.volume(lastLogs)).toLocaleString() + ' kg lifted' +
+        (cmp ? '. Better than the time before on ' + up + ' of ' + cmp + ' exercises' + (down ? ', lower on ' + down : '') : '') + '.</p>';
+    }
+
+    var h = '<div class="dash"><section class="d-card d-hero">' + hero + '</section><section class="d-card d-goal">' + goal + '</section><section class="d-card d-week">' + week + '</section>' +
+      '<section class="d-card d-last">' + last + '</section><section class="d-card d-bal"><h2>Sets per muscle this week</h2>' + balanceHTML(t) + '</section></div>';
     h += '<p class="sync-line" id="sync-line">' + esc(syncText()) + '</p>';
     if (!Store.persistent) { h += '<p class="warn">This browser is not saving data (private mode or storage blocked). Export a backup from the Plan tab before you close it.</p>'; }
     return h;
+  }
+
+  // sets per muscle: this week against the average of the 4 weeks before
+  function balanceHTML(t) {
+    var grp = {}; Data.EX.forEach(function (e) { grp[e.id] = e.muscle; });
+    var ws0 = weekStart(t), cnt = Stats.setsByGroup(Store.allLogs(), grp, ws0, Store.addDays(ws0, 6)), prev = Stats.setsByGroup(Store.allLogs(), grp, Store.addDays(ws0, -28), Store.addDays(ws0, -1));
+    return '<ul class="bal">' + Data.ORDER.map(function (g) { var a = cnt[g] || 0, b = Math.round((prev[g] || 0) / 4); return '<li><span>' + Data.MUSCLES[g].name + '</span><div class="bal-bar" role="img" aria-label="' + a + ' sets this week, ' + b + ' average"><i style="width:' + Math.min(100, a * 100 / 15) + '%"></i></div><b>' + a + '</b><small>avg ' + b + '</small></li>'; }).join('') + '</ul>';
   }
 
   function lookPref() { try { return JSON.parse(localStorage.getItem('gymtracker.look')) || {}; } catch (e) { return {}; } }
@@ -353,10 +384,7 @@
     h += '<div class="sec"><h2>Workouts per week</h2><p class="sub">Days trained, last 8 weeks (week start date below each bar). Plan is 5.</p>' +
       Charts.bars(weeks, { max: 5, aria: 'Workouts per week for the last 8 weeks' }) + '</div>';
 
-    var grp = {}; Data.EX.forEach(function (e) { grp[e.id] = e.muscle; });
-    var ws0 = weekStart(t), cnt = Stats.setsByGroup(Store.allLogs(), grp, ws0, Store.addDays(ws0, 6)), prev = Stats.setsByGroup(Store.allLogs(), grp, Store.addDays(ws0, -28), Store.addDays(ws0, -1));
-    h += '<div class="sec"><h2>Muscle balance</h2><p class="sub">Sets logged per muscle. This week against your average over the 4 weeks before. Roughly 10 or more sets a week per muscle is a solid target.</p><ul class="bal">' +
-      Data.ORDER.map(function (g) { var a = cnt[g] || 0, b = Math.round((prev[g] || 0) / 4); return '<li><span>' + Data.MUSCLES[g].name + '</span><div class="bal-bar" role="img" aria-label="' + a + ' sets this week, ' + b + ' average"><i style="width:' + Math.min(100, a * 100 / 15) + '%"></i></div><b>' + a + '</b><small>avg ' + b + '</small></li>'; }).join('') + '</ul></div>';
+    h += '<div class="sec"><h2>Muscle balance</h2><p class="sub">Sets logged per muscle. This week against your average over the 4 weeks before. Roughly 10 or more sets a week per muscle is a solid target.</p>' + balanceHTML(t) + '</div>';
     var ids = {}; Store.allLogs().forEach(function (l) { ids[l.e] = 1; });
     var list = Data.EX.filter(function (e) { return ids[e.id]; });
     h += '<div class="sec"><h2>Exercise progress</h2>';
@@ -487,7 +515,7 @@
   function render(keepScroll) {
     Engine.unmountAll(); if (window.Engine3D) { Engine3D.unmountAll(); }
     var r = route(), gate = !Store.user() ? 'login' : Store.needsSetup() ? 'setup' : '';
-    document.body.classList.toggle('gated', !!gate);
+    document.body.classList.toggle('gated', !!gate); view.setAttribute('data-r', gate || r.name);
     if (gate || r.name === 'summary') { Rest.hide(); }
     view.innerHTML = gate ? (gate === 'login' ? viewLogin() : viewSetup()) : views[r.name](r.arg);
     document.querySelectorAll('.tabs a').forEach(function (a) {
