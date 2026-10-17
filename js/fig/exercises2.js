@@ -230,16 +230,17 @@ export function makeMore(H) {
 
   // Overhead dumbbell triceps extension (both hands on one dumbbell). t = 0 forearms folded behind the head, t = 1 arms extended overhead.
   out['overhead-triceps-extension'] = (() => {
-    const keys = { U: [U3(0.07, 1, -0.06), U3(0.07, 1, -0.04), U3(0.05, 1, -0.02)], F: [U3(0, -0.45, -0.89), U3(0, 0.3, -0.95), U3(0, 1, -0.05)], N: [U3(0, 0.9, 0.4), U3(0, 0.3, 0.95), U3(0, -0.05, 1)] };
+    const keys = { U: [U3(0.07, 1, -0.06), U3(-0.1, 1, -0.04), U3(-0.22, 1, -0.02)], F: [U3(0, -0.45, -0.89), U3(-0.2, 0.3, -0.95), U3(-0.22, 1, -0.05)], N: [U3(0, 0.9, 0.4), U3(0, 0.3, 0.95), U3(0, -0.05, 1)] };
     return {
       camera: cameraFor({ ty: 1.35, dist: 3.4, yaw: 75, pitch: 8 }),
       setup(ctx) { const db = makeDumbbell(0.07); ctx.scene.add(db); return { ctx, db }; },
       pose(st, t) {
         const rig = st.ctx.rig; rig.reset(); neckLevel(rig, 0);
         const u = keyDir(keys.U, t), f = keyDir(keys.F, t), n = keyDir(keys.N, t), fr = {};
-        for (const s of ['l', 'r']) { const m = s === 'l' ? x => x : mir; fr[s] = rig.armFK(s, m(u), m(f), m(n), 0.8); }
-        const mid = rig.wp('hand_l').clone().add(rig.wp('hand_r')).multiplyScalar(0.5).add(fr.l.f.clone().multiplyScalar(0.05));
-        st.db.position.copy(mid); st.db.rotation.set(0, 0, Math.PI / 2);   // dumbbell stands upright between the hands
+        // both hands cup under the top plate: fingers point inward toward each other, palms up
+        for (const s of ['l', 'r']) { const m = s === 'l' ? x => x : mir; rig.aim('upperarm_' + s, m(u)); rig.aim('lowerarm_' + s, m(f)); fr[s] = rig.handFrame(s, m(f).add(new V3(s === 'l' ? -0.9 : 0.9, 0, 0)), new V3(0, 1, 0), 0.7); }
+        const mid = rig.wp('hand_l').clone().add(rig.wp('hand_r')).multiplyScalar(0.5).add(new V3(0, 0.02, 0));
+        st.db.position.copy(mid).add(new V3(0, -0.085, 0)); st.db.rotation.set(0, 0, Math.PI / 2);   // dumbbell hangs from the cupped hands
         return { grips: [mid.clone()] };
       }
     };
