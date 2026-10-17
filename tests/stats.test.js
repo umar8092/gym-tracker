@@ -81,4 +81,9 @@ t('calories: scales with sets and load, bodyweight counts, empty is 0', () => {
   assert.ok(S.calories(mk(12, 10, 80), 92) > S.calories(mk(12, 10, 60), 92));
   assert.ok(S.calories(mk(6, 10, 0), 92) > 0); assert.strictEqual(S.calories([], 92), 0);
 });
+t('record: counts wins, losses and draws between consecutive sessions', () => {
+  const logs = [L('2026-01-01', 'a', 8, 60), L('2026-01-08', 'a', 9, 60), L('2026-01-15', 'a', 9, 60), L('2026-01-22', 'a', 8, 55), L('2026-01-01', 'b', 10, 20)];
+  assert.deepStrictEqual(S.record(logs), { w: 1, l: 1, d: 1 });
+  assert.deepStrictEqual(S.record([]), { w: 0, l: 0, d: 0 });
+});
 console.log(`\n${n} stats tests OK`);

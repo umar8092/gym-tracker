@@ -44,12 +44,12 @@ const URL = process.env.URL || 'http://localhost:8765/index.html', OUT = '/tmp/g
   await page.locator('.finish a.btn').click(); await page.waitForTimeout(300);
   ok((await page.locator('h1').textContent()).includes('Chest done'), 'summary page opens');
   ok(await page.locator('#rest').isHidden(), 'rest timer is hidden on the summary page');
-  ok((await page.locator('main').textContent()).includes('Better than last time on 1 of 1'), 'summary counts exercises beaten (only bench was done today)');
+  ok((await page.locator('main').textContent()).includes('Won 1 of 1 bouts against last time'), 'summary counts bouts won (only bench was done today)');
   await page.screenshot({ path: OUT + '/feat-summary.png', fullPage: true });
   // progress
   await page.goto(URL + '#/progress'); await page.waitForTimeout(300);
-  ok((await page.locator('.sec').first().textContent()).includes('How you are doing'), 'progress shows analytics first');
-  ok(await page.locator('.sec').first().locator('.vd.up').count() >= 1, 'last-session comparison shows exercises going up');
+  ok((await page.locator('main').textContent()).includes('How you are doing'), 'dashboard shows the analytics section');
+  ok(await page.locator('.sec', { hasText: 'How you are doing' }).locator('.vd.up').count() >= 1, 'last-session comparison shows exercises going up');
   await page.locator('[data-act="mode"][data-v="7"]').click(); await page.waitForTimeout(200);
   await page.screenshot({ path: OUT + '/feat-progress.png', fullPage: true });
   await page.locator('[data-act="mode"][data-v="30"]').click(); await page.waitForTimeout(200);

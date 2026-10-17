@@ -154,6 +154,17 @@
     return Math.round((3 * bodyKg * (logs.length * 2.5 / 60) + joules / 4184 / 0.22) / 5) * 5;
   }
 
-  var Stats = { epley: epley, kgText: kgText, summarize: summarize, sessions: sessions, inRange: inRange, setDelta: setDelta, compare: compare, progress: progress, prFor: prFor, PR_TEXT: PR_TEXT, records: records, target: target, plates: plates, trend: trend, calories: calories, warmup: warmup, setsByGroup: setsByGroup };
+  // fight record over all history: each exercise session compared with the one before it. W = up, L = down, D = same or mixed.
+  function record(logs) {
+    var ids = {}, r = { w: 0, l: 0, d: 0 };
+    logs.forEach(function (l) { ids[l.e] = 1; });
+    Object.keys(ids).forEach(function (id) {
+      var ss = sessions(id, logs), i, v;
+      for (i = 1; i < ss.length; i++) { v = compare(ss[i], ss[i - 1]).verdict; if (v === 'up') { r.w++; } else if (v === 'down') { r.l++; } else { r.d++; } }
+    });
+    return r;
+  }
+
+  var Stats = { epley: epley, kgText: kgText, summarize: summarize, sessions: sessions, inRange: inRange, setDelta: setDelta, compare: compare, progress: progress, prFor: prFor, PR_TEXT: PR_TEXT, records: records, target: target, plates: plates, trend: trend, record: record, calories: calories, warmup: warmup, setsByGroup: setsByGroup };
   if (typeof module !== 'undefined') { module.exports = Stats; } else { window.Stats = Stats; }
 })();
