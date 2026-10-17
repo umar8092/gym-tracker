@@ -62,6 +62,7 @@
     h += '<div class="goal"><div class="goal-top"><h3>' + kgStr(cur) + ' kg now, goal ' + kgStr(p.goalKg) + ' kg</h3><a class="link" href="#/progress">Log weight</a></div>' +
       '<div class="goal-bar" role="img" aria-label="' + Math.round(pct * 100) + ' percent of the way to your goal weight"><i style="width:' + Math.round(pct * 100) + '%"></i></div>' +
       '<p class="muted" style="margin-top:8px">' + (cur > p.goalKg ? kgStr(cur - p.goalKg) + ' kg to go' : 'Goal reached') + '</p></div>';
+    h += '<p class="sync-line" id="sync-line">' + esc(syncText()) + '</p>';
     if (!Store.persistent) { h += '<p class="warn">This browser is not saving data (private mode or storage blocked). Export a backup from the Plan tab before you close it.</p>'; }
     return h;
   }
@@ -270,10 +271,38 @@
       '<div class="fld"><label for="gk">Goal weight (kg)</label><input id="gk" class="text-in num" type="number" inputmode="decimal" step="0.1" value="' + kgStr(p.goalKg) + '"></div>' +
       '<button class="btn primary" type="button" data-act="save-goal">Save</button></div></div>';
     h += '<div class="sec"><h2>Appearance</h2><div class="switch"><span id="dm-l">Dark mode</span><button type="button" role="switch" aria-checked="' + isDark() + '" aria-labelledby="dm-l" data-act="theme"></button></div></div>';
-    h += '<div class="sec"><h2>Your data</h2><p class="sub">Saved on this device. Export a backup now and then, and to move to a new phone.</p>' +
+    h += '<div class="sec"><h2>Account</h2><p>Signed in as <b>' + esc(Store.user()) + '</b>.</p><p class="sub" id="sync-state">' + esc(syncText()) + '</p>' +
+      '<div class="btns"><button class="btn small" type="button" data-act="sync-now">Sync now</button><button class="link" type="button" data-act="switch-user">Switch user</button></div></div>';
+    h += '<div class="sec"><h2>Your data</h2><p class="sub">Saved on this device and copied to the cloud when online. You can also export a backup file.</p>' +
       '<div class="btns"><button class="btn small" type="button" data-act="export">Export backup</button><label class="btn small" for="imp" style="cursor:pointer">Import backup</label><input id="imp" type="file" accept="application/json,.json" class="sr" data-f="import">' +
-      '<button class="link danger" type="button" data-act="reset">Erase everything</button></div></div>';
+      '<button class="link danger" type="button" data-act="reset">Erase data on this device</button></div></div>';
     return h;
+  }
+
+  /* =========================================================  ACCOUNT  */
+  function syncText(st) {
+    st = st || Sync.status();
+    switch (st.state) {
+      case 'syncing': return 'Syncing...';
+      case 'synced': var d = new Date(st.at); return 'Synced at ' + d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes() + '.';
+      case 'offline': return 'Offline. Everything is saved on this device and will sync when you are back online.';
+      case 'denied': return 'This username is not allowed in the cloud, so your data is only on this device. Ask Umar to add it.';
+      case 'error': return 'Sync problem (' + st.msg + '). It will retry.';
+      default: return 'Not synced yet.';
+    }
+  }
+  function viewLogin() {
+    return '<h1>Who is training?</h1><p class="intro">Type your username. It keeps your workouts separate from everyone else using this app. There is no password.</p>' +
+      '<form data-form="login" novalidate><div class="fld" style="margin-top:22px"><label for="un">Username</label>' +
+      '<input id="un" class="text-in" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="20" required></div>' +
+      '<p class="muted" style="font-size:14px;margin-top:6px">Lowercase letters, numbers and underscores.</p>' +
+      '<p class="form-err" id="login-err" role="alert"></p><button class="btn primary block" type="submit" style="margin-top:14px">Continue</button></form>';
+  }
+  function viewSetup() {
+    return '<h1>Welcome, ' + esc(Store.user()) + '</h1><p class="intro">Two numbers to start. You can change them later in the Plan tab.</p>' +
+      '<form data-form="setup" novalidate><div class="row-form"><div class="fld"><label for="su-now">Current weight (kg)</label><input id="su-now" class="text-in num" type="number" inputmode="decimal" step="0.1" min="20" max="400"></div>' +
+      '<div class="fld"><label for="su-goal">Goal weight (kg)</label><input id="su-goal" class="text-in num" type="number" inputmode="decimal" step="0.1" min="20" max="400"></div></div>' +
+      '<p class="form-err" id="setup-err" role="alert"></p><button class="btn primary block" type="submit" style="margin-top:14px">Start</button></form>';
   }
 
   /* =========================================================  ROUTER  */
@@ -285,8 +314,9 @@
   }
   function render(keepScroll) {
     Engine.unmountAll();
-    var r = route();
-    view.innerHTML = views[r.name](r.arg);
+    var r = route(), gate = !Store.user() ? 'login' : Store.needsSetup() ? 'setup' : '';
+    document.body.classList.toggle('gated', !!gate);
+    view.innerHTML = gate ? (gate === 'login' ? viewLogin() : viewSetup()) : views[r.name](r.arg);
     document.querySelectorAll('.tabs a').forEach(function (a) {
       var on = a.dataset.tab === (r.name === 'm' || r.name === 'pick' ? 'today' : r.name);
       if (on) { a.setAttribute('aria-current', 'page'); } else { a.removeAttribute('aria-current'); }
@@ -294,7 +324,7 @@
     view.querySelectorAll('.muscles').forEach(function (box) { showMuscle(box, box.closest('details') ? Data.byId[box.closest('details').dataset.ex].mus.view : 'front'); });
     if (!keepScroll) { window.scrollTo(0, 0); }
     var title = { today: 'Today', pick: 'Choose a muscle', calendar: 'Calendar', progress: 'Progress', plan: 'Plan', m: r.arg && Data.MUSCLES[r.arg] ? Data.MUSCLES[r.arg].name : 'Workout' }[r.name];
-    document.title = title + ' | Gym Tracker';
+    document.title = gate ? 'Gym Tracker' : title + ' | Gym Tracker';
   }
   function showMuscle(box, v) {
     box.querySelectorAll('svg.mimg g[data-view]').forEach(function (g) { g.style.display = g.getAttribute('data-view') === v ? '' : 'none'; });
@@ -336,7 +366,7 @@
         toast('Set ' + Store.setsFor(Store.today(), exId).length + ' logged');
         refreshLogger(exId); break;
       case 'rm':
-        Store.removeSet(+el.dataset.id); toast('Set removed'); refreshLogger(exId); break;
+        Store.removeSet(el.dataset.id); toast('Set removed'); refreshLogger(exId); break;
       case 'finish': toast('Workout saved'); break;
       case 'day': calState.sel = el.dataset.d; render(true); break;
       case 'cal-prev': case 'cal-next':
@@ -354,8 +384,10 @@
         var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([Store.exportJSON()], { type: 'application/json' }));
         a.download = 'gym-tracker-' + Store.today() + '.json'; a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000); break;
       case 'reset':
-        if (window.confirm('Erase all workouts and weights on this device? This cannot be undone.')) { Store.reset(); draft = {}; calState = null; toast('All data erased'); render(); }
+        if (window.confirm('Erase all workouts and weights on this device? Your cloud copy comes back at the next sync.')) { Store.reset(); draft = {}; calState = null; render(); Sync.run().then(function () { render(); }); }
         break;
+      case 'sync-now': Sync.run(); break;
+      case 'switch-user': Store.signOut(); draft = {}; calState = null; location.hash = '#/'; render(); break;
     }
   });
 
@@ -386,7 +418,28 @@
   });
   view.addEventListener('submit', function (e) {
     var f = e.target.dataset.form;
-    if (f === 'weight') {
+    if (f === 'login') {
+      e.preventDefault();
+      var inp = document.getElementById('un'), err = document.getElementById('login-err'), btn = e.target.querySelector('button'), name = inp.value.trim().toLowerCase();
+      err.textContent = '';
+      if (!/^[a-z0-9_]{3,20}$/.test(name)) { err.textContent = 'Use 3 to 20 lowercase letters, numbers or underscores.'; return; }
+      btn.disabled = true; btn.textContent = 'Checking...';
+      var go = function () {
+        Store.signIn(name);
+        Promise.race([Sync.run(), new Promise(function (r) { setTimeout(r, 6000); })]).then(function () { location.hash = '#/'; render(); });
+      };
+      if (Store.knownUser(name)) { go(); return; }
+      Sync.check(name).then(function (r) {
+        if (r === 'ok') { go(); return; }
+        btn.disabled = false; btn.textContent = 'Continue';
+        err.textContent = r === 'denied' ? 'That username is not on the list. Ask Umar to add it.' : r === 'offline' ? 'No connection. The first sign-in on a device needs internet.' : 'Could not reach the cloud. Try again in a moment.';
+      });
+    } else if (f === 'setup') {
+      e.preventDefault();
+      var now = num(document.getElementById('su-now').value), goal = num(document.getElementById('su-goal').value);
+      if (!(now >= 20 && now <= 400) || !(goal >= 20 && goal <= 400)) { document.getElementById('setup-err').textContent = 'Enter both weights in kg.'; return; }
+      Store.setProfile({ startKg: now, goalKg: goal }); Store.addWeight(Store.today(), now); location.hash = '#/'; render();
+    } else if (f === 'weight') {
       e.preventDefault();
       var d = document.getElementById('wd').value, kg = num(document.getElementById('wk').value);
       if (!d || !(kg >= 20 && kg <= 400)) { toast('Enter a date and a weight in kg'); return; }
@@ -413,6 +466,11 @@
   window.addEventListener('hashchange', function () { render(); });
   document.addEventListener('click', function (e) { if (!e.target.closest('.kg-row')) { closeMenus(); } });
 
+  Store.onMerge(function () { if (Store.user() && route().name !== 'm') { render(true); } });
+  Sync.onStatus(function (st) {
+    ['sync-line', 'sync-state'].forEach(function (id) { var el = document.getElementById(id); if (el) { el.textContent = syncText(st); } });
+  });
   render();
+  if (Store.user()) { Sync.run(); }
   window.__gym = { render: render };
 })();

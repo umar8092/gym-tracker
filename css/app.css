@@ -325,3 +325,9 @@ svg.mach-svg { display: block; width: 100%; max-width: 360px; height: auto; marg
 .plan-item details > summary { list-style: none; cursor: pointer; font-size: 14px; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; min-height: 36px; display: flex; align-items: center; }
 .plan-item details > summary::-webkit-details-marker { display: none; }
 .plan-item details { padding: 0 0 10px 34px; }
+
+/* ---------- account / sync ---------- */
+.gated .tabs { display: none; }
+.gated { padding-bottom: 0; }
+.form-err { margin-top: 10px; color: var(--miss); font-weight: 500; min-height: 1.2em; }
+.sync-line { margin-top: 18px; font-size: 14px; color: var(--muted); }

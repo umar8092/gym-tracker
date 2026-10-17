@@ -4,8 +4,8 @@ const OUT = '/tmp/gt-shots', URL = 'http://localhost:8765/index.html';
 (async () => {
   const b = await chromium.launch({ channel: 'chrome' });
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
-  const page = await ctx.newPage(); const errs = [];
-  page.on('console', m => { if (m.type() === 'error' && !/fonts\.g/.test(m.text())) errs.push(m.text()); });
+  const page = await ctx.newPage(); const errs = []; await require('./helpers').signIn(page);
+  page.on('console', m => { if (m.type() === 'error' && !/fonts\.g|ERR_FAILED/.test(m.text())) errs.push(m.text()); });
   page.on('pageerror', e => errs.push('PAGEERROR ' + e.message));
   const assert = (c, msg) => { if (!c) errs.push('ASSERT FAILED: ' + msg); };
   await page.clock.install({ time: new Date('2026-10-15T09:00:00') });

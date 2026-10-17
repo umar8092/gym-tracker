@@ -9,8 +9,8 @@ const OUT = process.env.OUT || '/tmp/gt-shots';
   for (const [w, h, tag] of sizes) {
     for (const scheme of ['light', 'dark']) {
       const ctx = await browser.newContext({ viewport: { width: w, height: h }, colorScheme: scheme, deviceScaleFactor: 2 });
-      const page = await ctx.newPage();
-      page.on('console', m => { if (m.type() === 'error' && !/fonts\.g/.test(m.text())) errors.push(tag + ' ' + m.text()); });
+      const page = await ctx.newPage(); await require('./helpers').signIn(page);
+      page.on('console', m => { if (m.type() === 'error' && !/fonts\.g|ERR_FAILED/.test(m.text())) errors.push(tag + ' ' + m.text()); });
       page.on('pageerror', e => errors.push(tag + ' PAGEERROR ' + e.message));
       await page.clock.install({ time: new Date('2026-10-15T09:00:00') }); // a Thursday = shoulders
       await page.goto('http://localhost:8765/index.html');

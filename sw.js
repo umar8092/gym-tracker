@@ -1,7 +1,7 @@
 /* Network-first service worker: always try the network so updates show up, fall back to the cache when offline.
    Bump VERSION when adding files to SHELL. */
-var VERSION = 'gym-v1';
-var SHELL = ['./', 'index.html', 'css/app.css', 'css/fonts.css', 'js/data.js', 'js/store.js', 'js/charts.js', 'js/muscle.js', 'js/machines.js', 'js/engine.js', 'js/app.js',
+var VERSION = 'gym-v2';
+var SHELL = ['./', 'index.html', 'css/app.css', 'css/fonts.css', 'js/data.js', 'js/store.js', 'js/sync.js', 'js/charts.js', 'js/muscle.js', 'js/machines.js', 'js/engine.js', 'js/app.js',
   'fonts/barlow-400.woff2', 'fonts/barlow-500.woff2', 'fonts/barlowcondensed-600.woff2', 'fonts/barlowcondensed-700.woff2', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', function (e) {
