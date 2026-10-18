@@ -168,7 +168,7 @@
     doShare('save'); if (navigator.clipboard) { navigator.clipboard.writeText(cur.text).catch(function () {}); }
   }
 
-  var APP_VERSION = 'gym-v30';   // keep equal to VERSION in sw.js (tests/version.test.js checks it)
+  var APP_VERSION = 'gym-v31';   // keep equal to VERSION in sw.js (tests/version.test.js checks it)
   function deviceInfo() { var ua = navigator.userAgent || '', m = /(iPhone|iPad|Android[^;)]*|Windows|Macintosh|Linux)/.exec(ua), b = /(Edg|CriOS|FxiOS|Firefox|Chrome|Safari)\/?([\d.]*)/.exec(ua); return (m ? m[1] : 'device') + ', ' + (b ? b[1] + ' ' + b[2].split('.')[0] : 'browser') + ', screen ' + screen.width + 'x' + screen.height + ', ' + (Install.standalone() ? 'installed app' : 'in browser'); }
 
   /* =========================================================  EXPORT, REMINDERS, DELETE  */
@@ -709,7 +709,7 @@
 
   /* =========================================================  WORKOUT  */
   function initialDraft(ex, today) {
-    var done = Store.setsFor(today, ex.id), last = Store.lastSession(ex.id, today);
+    var done = Store.workSets(today, ex.id), last = Store.lastSession(ex.id, today);
     if (done.length) { var s = done[done.length - 1]; return { reps: s.reps, kg: s.kg }; }
     if (last && last.sets.length) { var ls = last.sets[Math.min(done.length, last.sets.length - 1)]; return { reps: ls.reps, kg: ls.kg }; }
     return { reps: parseInt(ex.reps, 10) || 10, kg: 0 };
@@ -775,15 +775,16 @@
     var tg = !sets.length && last ? Stats.target(ex.reps, Stats.summarize(last.date, last.sets)) : null;
     if (tg) { h += '<p class="target"><b>Target today:</b> ' + tg.reps + ' reps' + (tg.kg > 0 ? ' × ' + wStr(tg.kg) + ' ' + U() + '' : '') + '. ' + esc(tg.why) + '</p>'; }
     if (sets.length) {
+      var wn = 0;
       h += '<ol class="sets">' + sets.map(function (s, i) {
-        var dl = last ? Stats.setDelta(s, last.sets[i]) : null, pr = Stats.prFor(s, all);
-        return '<li><span class="sn">Round ' + (i + 1) + '</span><span class="sv num">' + s.reps + ' reps × ' + wStr(s.kg) + ' ' + U() + '' +
+        var warm = s.t === 'w', ri = warm ? 0 : ++wn, dl = last && !warm ? Stats.setDelta(s, last.sets[ri - 1]) : null, pr = warm ? null : Stats.prFor(s, all);
+        return '<li><span class="sn">' + (warm ? 'Warm-up' : 'Round ' + ri) + (s.t === 'f' ? ' <em class="stag">failure</em>' : s.t === 'd' ? ' <em class="stag">drop</em>' : '') + '</span><span class="sv num">' + s.reps + ' reps × ' + wStr(s.kg) + ' ' + U() + '' +
           (dl ? ' <span class="dl ' + dl.dir + '">' + (dl.dir === 'same' ? '' : arrow(dl.dir)) + dl.text + '</span>' : '') +
           (pr ? ' <span class="prb" title="' + Stats.PR_TEXT[pr] + '">PR</span>' : '') + '</span>' +
-          '<button class="rm" type="button" data-act="rm" data-id="' + s.id + '" aria-label="Remove round ' + (i + 1) + '">Remove</button></li>';
+          '<button class="rm" type="button" data-act="rm" data-id="' + s.id + '" aria-label="Remove set ' + (i + 1) + '">Remove</button></li>';
       }).join('') + '</ol>';
     }
-    var bw = ex.equip === 'Bodyweight';
+    var bw = ex.equip === 'Bodyweight', wsets = sets.filter(function (x) { return x.t !== 'w'; }).length;
     h += '<div class="logger">' +
       '<div class="fld"><label for="r-' + ex.id + '">' + (ex.timed ? 'Seconds' : 'Reps') + '</label><div class="stepper"><button type="button" data-act="rep-" aria-label="Fewer reps">−</button>' +
         '<input id="r-' + ex.id + '" class="num" type="number" inputmode="numeric" min="1" step="1" value="' + dr.reps + '" data-f="reps"><button type="button" data-act="rep+" aria-label="More reps">+</button></div></div>' +
@@ -795,7 +796,8 @@
         '<div class="lb"><ul class="lb-menu" role="listbox" tabindex="-1" aria-label="Weight in kilograms" hidden>' +
         menuKg().map(function (v) { return '<li role="option" data-act="kgset" data-v="' + v + '" aria-selected="' + (dr.kg === v) + '">' + wStr(v) + ' ' + U() + '</li>'; }).join('') +
         '</ul></div></div>' +
-      '<button type="button" class="btn primary block log-btn" data-act="log">Log round ' + (sets.length + 1) + '</button></div>';
+      '<div class="stypes" role="group" aria-label="Set type">' + [['', 'Normal'], ['w', 'Warm-up'], ['f', 'Failure'], ['d', 'Drop']].map(function (t) { return '<button type="button" class="chip" data-act="stype" data-v="' + t[0] + '" aria-pressed="' + ((dr.t || '') === t[0]) + '">' + t[1] + '</button>'; }).join('') + '</div>' +
+      '<button type="button" class="btn primary block log-btn" data-act="log">' + (dr.t === 'w' ? 'Log warm-up' : 'Log round ' + (wsets + 1)) + '</button></div>';
     var extra = '';
     if (last && sets.length < last.sets.length) { extra += '<button type="button" class="link" data-act="repeat">Repeat last time (' + (last.sets.length - sets.length) + ' more ' + (last.sets.length - sets.length === 1 ? 'set' : 'sets') + ')</button>'; }
     if (ex.equip === 'Barbell') { extra += '<button type="button" class="link" data-act="plates">Plates</button>'; }
@@ -836,7 +838,7 @@
   function skipped() { try { var o = JSON.parse(localStorage.getItem('gymtracker.skip')); return o && o.d === Store.today() ? o.ids : []; } catch (e) { return []; } }
   function setSkipped(ids) { try { localStorage.setItem('gymtracker.skip', JSON.stringify({ d: Store.today(), ids: ids })); } catch (e) {} }
   function exStatus(ex, t) {
-    var n = Store.setsFor(t, ex.id).length, sk = skipped().indexOf(ex.id) >= 0;
+    var n = Store.workSets(t, ex.id).length, sk = skipped().indexOf(ex.id) >= 0;
     return n >= ex.sets ? { cls: 'done', txt: 'Done' } : n ? { cls: 'part', txt: n + ' / ' + ex.sets } : sk ? { cls: 'skip', txt: 'Skipped' } : { cls: '', txt: ex.sets + ' rounds' };
   }
   function viewWorkout(id, arg2) {
@@ -847,7 +849,7 @@
     if (!exs.length) { return h + '<p class="empty">All exercises for this muscle are switched off. Turn some on in the Plan tab.</p>'; }
     // which one: the number in the link, else the first one not finished or skipped
     var idx = parseInt(arg2, 10) - 1, sk = skipped();
-    if (!(idx >= 0 && idx < exs.length)) { idx = 0; for (var q = 0; q < exs.length; q++) { if (Store.setsFor(t, exs[q].id).length < exs[q].sets && sk.indexOf(exs[q].id) < 0) { idx = q; break; } } }
+    if (!(idx >= 0 && idx < exs.length)) { idx = 0; for (var q = 0; q < exs.length; q++) { if (Store.workSets(t, exs[q].id).length < exs[q].sets && sk.indexOf(exs[q].id) < 0) { idx = q; break; } } }
     var ex = exs[idx], i = idx, last = idx === exs.length - 1;
     var todays = Data.planAll(Store.parse(t).getDay()), nm = todays[todays.indexOf(id) + 1] || (todays.indexOf(id) < 0 ? '' : ''), nextM = nm && visibleEx(nm).length ? nm : '';
     h += '<div class="wk"><nav class="rail" aria-label="Exercises in this workout"><ol>' + exs.map(function (e, k) {
@@ -1293,6 +1295,7 @@
       case 'rep+': case 'rep-': dr.reps = Math.max(1, (num(dr.reps) || 0) + (act === 'rep+' ? 1 : -1)); refreshField(exId); break;
       case 'kg+': case 'kg-': dr.kg = Math.max(0, Stats.fromU(Math.round((Stats.toU(num(dr.kg) || 0) + (act === 'kg+' ? 1 : -1) * (U() === 'lb' ? 1 : 0.5)) * 10) / 10)); refreshField(exId); break;
       case 'kgset': dr.kg = num(el.dataset.v); closeMenus(); refreshField(exId); break;
+      case 'stype': dr.t = el.dataset.v; refreshLogger(exId); break;
       case 'menu':
         var menu = secEl.querySelector('.lb-menu'), open = menu.hidden;
         closeMenus(); menu.hidden = !open; el.setAttribute('aria-expanded', String(open));
@@ -1303,8 +1306,9 @@
         var reps = num(dr.reps), kg = num(dr.kg), ex = Data.byId[exId];
         if (!(reps >= 1) || Math.floor(reps) !== reps) { toast('Enter the reps first'); break; }
         if (isNaN(kg) || kg < 0 || (kg === 0 && ex.equip !== 'Bodyweight')) { toast(ex.equip === 'Barbell' ? 'Pick a weight first. An empty bar is ' + BAR_NAME() + '.' : 'Pick a weight first. Start light.'); break; }
-        Store.addSet(Store.today(), ex.muscle, exId, reps, kg);
-        var doneSets = Store.setsFor(Store.today(), exId), mine = doneSets[doneSets.length - 1], pr = Stats.prFor(mine, exLogs(exId));
+        var st = dr.t || '', newId = Store.addSet(Store.today(), ex.muscle, exId, reps, kg); if (st) { Store.setType(newId, st); }
+        var allSets = Store.setsFor(Store.today(), exId), doneSets = allSets.filter(function (x) { return x.t !== 'w'; }), mine = allSets[allSets.length - 1], pr = st === 'w' ? null : Stats.prFor(mine, exLogs(exId));
+        if (st === 'w') { draft[exId] = { reps: reps, kg: kg }; refreshLogger(exId); toast('Warm-up logged. It does not count towards your rounds or records.'); break; }
         toast('Round ' + doneSets.length + ' logged' + (pr ? '. ' + Stats.PR_TEXT[pr] + '!' : ''), pr ? { label: 'Share PR', fn: function () { openShare(prShare(exId, mine.id)); } } : null);
         if (wasLast && wasLast.sets[doneSets.length]) { draft[exId] = { reps: wasLast.sets[doneSets.length].reps, kg: wasLast.sets[doneSets.length].kg }; } // preload the next set from last time
         var ord = visibleEx(ex.muscle), oi = ord.map(function (e) { return e.id; }).indexOf(exId);
@@ -1313,7 +1317,7 @@
         if (doneSets.length === ex.sets) { toast('Exercise done. Tap Next when you are ready.'); var nb = view.querySelector('[data-act="wk-next"]'); if (nb) { nb.classList.add('ready'); } }
         break;
       case 'repeat':
-        var lt = Store.lastSession(exId, Store.today()), have = Store.setsFor(Store.today(), exId).length, exr = Data.byId[exId], added = 0;
+        var lt = Store.lastSession(exId, Store.today()), have = Store.workSets(Store.today(), exId).length, exr = Data.byId[exId], added = 0;
         if (lt) { lt.sets.slice(have).forEach(function (st) { Store.addSet(Store.today(), exr.muscle, exId, st.reps, st.kg); added++; }); }
         toast(added + (added === 1 ? ' set' : ' sets') + ' logged like last time. Remove any that differ.'); refreshLogger(exId); break;
       case 'req-send': case 'req-copy':
@@ -1441,7 +1445,7 @@
     var dr = draft[exId], sec = view.querySelector('section.ex[data-ex="' + exId + '"]');
     sec.querySelector('[data-f="reps"]').value = dr.reps;
     sec.querySelector('[data-f="kg"]').value = wStr(dr.kg);
-    sec.querySelectorAll('.chip[data-v]').forEach(function (c) { c.setAttribute('aria-pressed', String(num(c.dataset.v) === dr.kg)); });
+    sec.querySelectorAll('.chip[data-act="kgset"]').forEach(function (c) { c.setAttribute('aria-pressed', String(num(c.dataset.v) === dr.kg)); });
     sec.querySelectorAll('.lb-menu li').forEach(function (c) { c.setAttribute('aria-selected', String(num(c.dataset.v) === dr.kg)); });
     var pl = sec.querySelector('.plates'); if (pl && !pl.hidden) { pl.innerHTML = platesHTML(exId); }
   }

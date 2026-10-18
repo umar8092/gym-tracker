@@ -15,7 +15,7 @@
   try { user = localStorage.getItem(USER_KEY) || ''; } catch (e) { persistent = false; }
 
   function fresh() {
-    return { profile: { startKg: null, goalKg: null, startDate: ymd(new Date()) }, weights: [], logs: [], hidden: {}, notes: {}, custom: {}, schedule: null, measures: [], superset: {}, settings: { u: 0, dirty: false }, pull: { logs: 0, weights: 0 } };
+    return { profile: { startKg: null, goalKg: null, startDate: ymd(new Date()) }, weights: [], logs: [], hidden: {}, notes: {}, custom: {}, schedule: null, measures: [], superset: {}, stype: {}, settings: { u: 0, dirty: false }, pull: { logs: 0, weights: 0 } };
   }
   function normalize(o) {
     var d = fresh(); for (var k in d) { if (!(k in o)) { o[k] = d[k]; } }
@@ -39,6 +39,8 @@
   function save() { try { localStorage.setItem(dbKey(user), JSON.stringify(db)); } catch (e) { persistent = false; } }
   function wrote() { save(); writeFns.forEach(function (f) { f(); }); }
   function live() { return db.logs.filter(function (l) { return !l.del; }); }
+  // set types (w warm-up, f failure, d drop) live in the settings JSON: the cloud rules only allow fixed fields on log docs
+  function stype() { return db.stype || (db.stype = {}); }
   function touchSettings() { db.settings.u = now(); db.settings.dirty = true; }
 
   if (user) { db = load(user); save(); }
@@ -64,7 +66,7 @@
     /* ---- sets ---- */
     addSet: function (date, muscle, exId, reps, kg) {
       var t = now();
-      db.logs.push({ id: uid(), d: date, m: muscle, e: exId, reps: reps, kg: kg, ts: t, u: t, dirty: true }); wrote();
+      var id = uid(); db.logs.push({ id: id, d: date, m: muscle, e: exId, reps: reps, kg: kg, ts: t, u: t, dirty: true }); wrote(); return id;
     },
     updateSet: function (id, reps, kg) {
       db.logs.forEach(function (l) { if (l.id === id) { l.reps = reps; l.kg = kg; l.u = now(); l.dirty = true; } }); wrote();
@@ -74,14 +76,21 @@
       db.logs.forEach(function (l) { if (l.id === id) { l.del = true; l.u = now(); l.dirty = true; } }); wrote();
     },
     setsFor: function (date, exId) {
-      return live().filter(function (l) { return l.d === date && l.e === exId; }).sort(function (a, b) { return a.ts - b.ts; });
+      return live().filter(function (l) { return l.d === date && l.e === exId; }).sort(function (a, b) { return a.ts - b.ts; }).map(function (l) { l.t = stype()[l.id] || ''; return l; });
     },
+    workSets: function (date, exId) { return Store.setsFor(date, exId).filter(function (l) { return l.t !== 'w'; }); },
     logsOn: function (date) { return live().filter(function (l) { return l.d === date; }); },
-    allLogs: function () { return live(); },
+    allLogs: function () { return live().filter(function (l) { return stype()[l.id] !== 'w'; }); },   // warm-ups never count towards PRs, volume or streaks
+    allLogsRaw: function () { return live(); },
+    setType: function (id, t) {
+      var m = stype(); if (t) { m[id] = t; } else { delete m[id]; }
+      var ids = Object.keys(m); if (ids.length > 40) { var keep = {}; db.logs.forEach(function (l) { keep[l.id] = l.ts; }); ids.sort(function (a, b) { return (keep[a] || 0) - (keep[b] || 0); }).slice(0, ids.length - 40).forEach(function (k) { delete m[k]; }); }
+      touchSettings(); wrote();
+    },
     lastSession: function (exId, before) {
       var best = '';
       live().forEach(function (l) { if (l.e === exId && l.d < before && l.d > best) { best = l.d; } });
-      return best ? { date: best, sets: Store.setsFor(best, exId) } : null;
+      return best ? { date: best, sets: Store.workSets(best, exId) } : null;
     },
 
     /* ---- plan filter ---- */
@@ -169,7 +178,7 @@
       return {
         logs: db.logs.filter(function (l) { return l.dirty; }).map(function (l) { return Object.assign({}, l); }),
         weights: db.weights.filter(function (w) { return w.dirty; }).map(function (w) { return Object.assign({}, w); }),
-        settings: db.settings.dirty ? { u: db.settings.u, profile: db.profile, hidden: db.hidden, notes: db.notes, custom: db.custom, schedule: db.schedule, measures: db.measures, superset: db.superset } : null
+        settings: db.settings.dirty ? { u: db.settings.u, profile: db.profile, hidden: db.hidden, notes: db.notes, custom: db.custom, schedule: db.schedule, measures: db.measures, superset: db.superset, stype: db.stype } : null
       };
     },
     ack: function (sent) {
@@ -194,7 +203,7 @@
         else if (r.u > w.u) { w.kg = r.kg; w.u = r.u; w.dirty = false; changed = true; }
       });
       if (remote.settings && remote.settings.u > db.settings.u) {
-        db.profile = Object.assign(db.profile, remote.settings.profile); db.hidden = remote.settings.hidden || {}; db.notes = remote.settings.notes || {}; db.custom = remote.settings.custom || {}; Data.setCustom(db.custom); db.schedule = remote.settings.schedule || null; Data.setSchedule(db.schedule || Data.DEFAULT_SCHEDULE); db.measures = remote.settings.measures || []; db.superset = remote.settings.superset || {};
+        db.profile = Object.assign(db.profile, remote.settings.profile); db.hidden = remote.settings.hidden || {}; db.notes = remote.settings.notes || {}; db.custom = remote.settings.custom || {}; Data.setCustom(db.custom); db.schedule = remote.settings.schedule || null; Data.setSchedule(db.schedule || Data.DEFAULT_SCHEDULE); db.measures = remote.settings.measures || []; db.superset = remote.settings.superset || {}; db.stype = remote.settings.stype || {};
         db.settings = { u: remote.settings.u, dirty: false }; changed = true;
       } else if (!remote.settings && db.settings.u === 0 && !Store.needsSetup()) { touchSettings(); }
       if (remote.cursor) { db.pull = remote.cursor; }
