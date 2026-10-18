@@ -168,6 +168,39 @@
     doShare('save'); if (navigator.clipboard) { navigator.clipboard.writeText(cur.text).catch(function () {}); }
   }
 
+  var APP_VERSION = 'gym-v30';   // keep equal to VERSION in sw.js (tests/version.test.js checks it)
+  function deviceInfo() { var ua = navigator.userAgent || '', m = /(iPhone|iPad|Android[^;)]*|Windows|Macintosh|Linux)/.exec(ua), b = /(Edg|CriOS|FxiOS|Firefox|Chrome|Safari)\/?([\d.]*)/.exec(ua); return (m ? m[1] : 'device') + ', ' + (b ? b[1] + ' ' + b[2].split('.')[0] : 'browser') + ', screen ' + screen.width + 'x' + screen.height + ', ' + (Install.standalone() ? 'installed app' : 'in browser'); }
+
+  /* =========================================================  EXPORT, REMINDERS, DELETE  */
+  function download(name, text, type) { var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: type })); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1500); }
+  function csvCell(v) { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+  function exportCSV(kind) {
+    var rows;
+    if (kind === 'weights') { rows = [['date', 'weight_kg', 'weight_lb']].concat(Store.weights().map(function (w) { return [w.d, Math.round(w.kg * 100) / 100, Math.round(w.kg * 2.20462 * 10) / 10]; })); }
+    else {
+      var n = {}; rows = [['date', 'muscle', 'exercise', 'set', 'reps', 'weight_kg', 'weight_lb']];
+      Store.allLogs().slice().sort(function (a, b) { return a.ts - b.ts; }).forEach(function (l) { var k = l.d + l.e; n[k] = (n[k] || 0) + 1; rows.push([l.d, mName(l.m), Data.byId[l.e] ? Data.byId[l.e].name : l.e, n[k], l.reps, Math.round(l.kg * 100) / 100, Math.round(l.kg * 2.20462 * 10) / 10]); });
+    }
+    download('gym-workout-' + kind + '-' + Store.today() + '.csv', '\ufeff' + rows.map(function (r) { return r.map(csvCell).join(','); }).join('\r\n'), 'text/csv;charset=utf-8');
+  }
+  // an .ics file: one weekly repeating event per training day, floating local time, with a reminder 15 minutes before
+  function icsFile(hhmm) {
+    var sc = Store.schedule(), codes = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'], t = Store.today(), hh = hhmm.split(':'), pad = function (n) { return (n < 10 ? '0' : '') + n; }, now = new Date(), stamp = now.getUTCFullYear() + pad(now.getUTCMonth() + 1) + pad(now.getUTCDate()) + 'T' + pad(now.getUTCHours()) + pad(now.getUTCMinutes()) + '00Z';
+    var ev = Object.keys(sc).map(function (d) {
+      d = +d; var date = Store.parse(t), add = (d - date.getDay() + 7) % 7; date.setDate(date.getDate() + add);
+      var ds = date.getFullYear() + pad(date.getMonth() + 1) + pad(date.getDate()), end = pad((+hh[0] + 1) % 24) + hh[1];
+      return ['BEGIN:VEVENT', 'UID:gym-' + codes[d] + '@gym-workout-tracker', 'DTSTAMP:' + stamp, 'DTSTART:' + ds + 'T' + hh[0] + hh[1] + '00', 'DTEND:' + ds + 'T' + end + '00', 'RRULE:FREQ=WEEKLY;BYDAY=' + codes[d],
+        'SUMMARY:Gym: ' + sc[d].map(mName).join(' + '), 'DESCRIPTION:Open Gym Workout Tracker: ' + SITE + '#/today', 'URL:' + SITE + '#/today', 'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:Gym time', 'TRIGGER:-PT15M', 'END:VALARM', 'END:VEVENT'].join('\r\n');
+    });
+    return 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Gym Workout Tracker//EN\r\nCALSCALE:GREGORIAN\r\n' + ev.join('\r\n') + '\r\nEND:VCALENDAR\r\n';
+  }
+  function deleteSheet() {
+    var me = Store.user();
+    openSheet('<h2>Delete my data</h2><p class="sub">This removes <b>everything</b> for <b>' + esc(me) + '</b> from the cloud (workouts, weights, settings) and from this device, then signs you out. It cannot be undone, and other devices keep their own local copy until they sync.</p>' +
+      '<div class="fld" style="margin-top:14px"><label for="del-n">Type your username to confirm</label><input id="del-n" class="text-in" autocapitalize="none" autocomplete="off" spellcheck="false"></div><p class="form-err" id="del-err" role="alert"></p>' +
+      '<div class="btns"><button class="btn danger-btn" type="button" data-act="delete-go">Delete everything</button><button class="link" type="button" data-act="sheet-close">Cancel</button></div>', 'sheet-delete');
+  }
+
   /* =========================================================  INSTALL AS AN APP  */
   var Install = {
     ua: navigator.userAgent || '',
@@ -1047,7 +1080,8 @@
       '<div class="switch" style="margin-top:14px"><span id="aw-l">Keep the screen on during a workout</span><button type="button" role="switch" aria-checked="' + (localStorage.getItem('gymtracker.awake') !== 'off') + '" aria-labelledby="aw-l" data-act="awake"></button></div></details>';
     var rc = Rest.cfg();
     h += '<details class="sec fold"><summary><span class="fh"><h2>Rest timer</h2></span></summary><div class="switch"><span id="rt-l">Start a timer after each set</span><button type="button" role="switch" aria-checked="' + rc.on + '" aria-labelledby="rt-l" data-act="rest-on"></button></div>' +
-      '<div class="modes four" role="group" aria-label="Rest length in seconds" style="margin-top:8px">' + [60, 90, 120, 180].map(function (v) { return '<button type="button" class="chip" data-act="rest-sec" data-v="' + v + '" aria-pressed="' + (rc.sec === v) + '">' + v + ' s</button>'; }).join('') + '</div></details>';
+      '<div class="modes five" role="group" aria-label="Rest length" style="margin-top:8px">' + ['smart', 60, 90, 120, 180].map(function (v) { return '<button type="button" class="chip" data-act="rest-sec" data-v="' + v + '" aria-pressed="' + (v === 'smart' ? rc.smart !== false : rc.smart === false && rc.sec === v) + '">' + (v === 'smart' ? 'Smart' : v + ' s') + '</button>'; }).join('') + '</div><p class="muted small-note">Smart: 2 to 3 minutes after big lifts like squats and bench, about 75 seconds after small ones. If you add time with +15 s, it remembers that for the exercise.</p></details>';
+    h += '<details class="sec fold"><summary><span class="fh"><h2>Workout reminders</h2><small>Add to your calendar</small></span></summary><p class="sub">Adds your training days to your phone or computer calendar as weekly events with a reminder 15 minutes before.</p><div class="row-form"><div class="fld"><label for="rm-t">Time</label><input id="rm-t" class="text-in" type="time" value="' + (localStorage.getItem('gymtracker.remind') || '18:00') + '"></div><button class="btn small" type="button" data-act="ics">Add to my calendar</button></div></details>';
     h += '<details class="sec fold"><summary><span class="fh"><h2>Appearance</h2></span></summary><div class="switch"><span id="dm-l">Dark mode</span><button type="button" role="switch" aria-checked="' + isDark() + '" aria-labelledby="dm-l" data-act="theme"></button></div></details>';
     h += '<details class="sec fold"><summary><span class="fh"><h2>Request a feature or an exercise</h2></span></summary><p class="sub">Tell me what you want added. It opens a prefilled note on GitHub, or you can copy the text and send it to me.</p>' +
       '<div class="fld"><label for="rq-t">What is it?</label><select id="rq-t" class="text-in"><option>Feature</option><option>Exercise</option><option>Problem with something</option></select></div>' +
@@ -1057,15 +1091,25 @@
     h += '<details class="sec fold"><summary><span class="fh"><h2>Account</h2></span></summary><p>Signed in as <b>' + esc(Store.user()) + '</b>. <button class="link" type="button" data-act="copy-name">Copy</button></p><p class="small-note">This username is the only key to your workouts. Keep it somewhere safe and private: you need it to sign in on another phone, and anyone who knows it can open your data.</p><p class="sub" id="sync-state">' + esc(syncText()) + '</p>' +
       '<div class="btns"><button class="btn small" type="button" data-act="sync-now">Sync now</button><button class="link" type="button" data-act="switch-user">Switch user</button></div></details>';
     h += '<details class="sec fold"><summary><span class="fh"><h2>Your data</h2></span></summary><p class="sub">Saved on this device and copied to the cloud when online. You can also export a backup file.</p>' +
-      '<div class="btns"><button class="btn small" type="button" data-act="export">Export backup</button><label class="btn small" for="imp" style="cursor:pointer">Import backup</label><input id="imp" type="file" accept="application/json,.json" class="sr" data-f="import">' +
-      '<button class="link danger" type="button" data-act="reset">Erase data on this device</button></div></details>';
+      '<div class="btns"><button class="btn small" type="button" data-act="csv" data-k="workouts">Export workouts (CSV)</button><button class="btn small" type="button" data-act="csv" data-k="weights">Export weights (CSV)</button><button class="btn small" type="button" data-act="export">Backup (JSON)</button><label class="btn small" for="imp" style="cursor:pointer">Import backup</label><input id="imp" type="file" accept="application/json,.json" class="sr" data-f="import">' +
+      '<button class="link danger" type="button" data-act="reset">Erase data on this device</button><button class="link danger" type="button" data-act="delete-open">Delete my data from the cloud</button></div>' +
+      '<p class="lab" style="margin-top:18px"><span>Privacy</span></p><p class="muted small-note">Stored: your username, workouts (date, exercise, reps, weight), body weights, measurements and your plan settings. Kept on this device and in a private-by-name cloud database so you can sign in on another phone. No email, no password, no ads, no tracking. Anyone who knows your username can open your data, so keep it private. You can export or delete everything here.</p></details>';
     return h;
   }
 
   /* =========================================================  REST TIMER  */
   var Rest = (function () {
     var el = document.getElementById('rest'), txt = document.getElementById('rest-t'), end = 0, tick = 0, fired = false, ctx = null, hideT = 0;
+    var lastEx = '', cur = 0;
     function cfg() { try { var c = JSON.parse(localStorage.getItem('gymtracker.rest')); if (c && c.sec) { return c; } } catch (e) {} return { on: true, sec: 90 }; }
+    // smart rest: big lifts get longer, small ones shorter, and a time you extend is remembered for that exercise
+    var BIG = /bench|squat|deadlift|row|press|pull-up|pulldown|lunge/;
+    function smartSec(exId) {
+      var ex = Data.byId[exId], over = {}; try { over = JSON.parse(localStorage.getItem('gymtracker.restx')) || {}; } catch (e) {}
+      if (over[exId]) { return over[exId]; }
+      if (!ex) { return 90; }
+      return ex.timed ? 45 : (ex.equip === 'Barbell' || BIG.test(ex.id)) && ex.id !== 'barbell-curl' && ex.id !== 'lying-triceps-extension' && ex.id !== 'front-raise' && ex.id !== 'lateral-raise' ? 150 : 75;
+    }
     function setCfg(c) { try { localStorage.setItem('gymtracker.rest', JSON.stringify(c)); } catch (e) {} }
     function beep() {
       try { [0, 0.28].forEach(function (d) { var o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = 880; g.gain.value = 0.2; o.connect(g); g.connect(ctx.destination); o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + 0.16); }); } catch (e) {}
@@ -1078,15 +1122,16 @@
       clearInterval(tick);
       if (!fired) { fired = true; if (left > -15) { beep(); } txt.textContent = 'Bell! Next round'; el.classList.add('over'); hideT = setTimeout(hide, 7000); }
     }
-    function start() {
+    function start(exId) {
       var c = cfg(); if (!c.on) { return; }
+      lastEx = exId || ''; cur = c.smart !== false && exId ? smartSec(exId) : c.sec;
       try { ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); if (ctx.resume) { ctx.resume(); } } catch (e) {}
-      clearTimeout(hideT); end = Date.now() + c.sec * 1000; fired = false; el.hidden = false; el.classList.remove('over'); document.body.classList.add('resting');
+      clearTimeout(hideT); end = Date.now() + cur * 1000; fired = false; el.hidden = false; el.classList.remove('over'); document.body.classList.add('resting');
       clearInterval(tick); tick = setInterval(paint, 250); paint();
     }
     el.addEventListener('click', function (e) {
       var b = e.target.closest('[data-rest]'); if (!b) { return; }
-      if (b.dataset.rest === 'skip') { clearTimeout(hideT); hide(); } else if (!fired) { end += 15000; paint(); }
+      if (b.dataset.rest === 'skip') { clearTimeout(hideT); hide(); } else if (!fired) { end += 15000; cur += 15; if (lastEx && cfg().smart !== false) { var o = {}; try { o = JSON.parse(localStorage.getItem('gymtracker.restx')) || {}; } catch (e2) {} o[lastEx] = cur; try { localStorage.setItem('gymtracker.restx', JSON.stringify(o)); } catch (e3) {} } paint(); }
     });
     return { start: start, hide: function () { clearTimeout(hideT); hide(); }, cfg: cfg, setCfg: setCfg };
   })();
@@ -1263,7 +1308,7 @@
         toast('Round ' + doneSets.length + ' logged' + (pr ? '. ' + Stats.PR_TEXT[pr] + '!' : ''), pr ? { label: 'Share PR', fn: function () { openShare(prShare(exId, mine.id)); } } : null);
         if (wasLast && wasLast.sets[doneSets.length]) { draft[exId] = { reps: wasLast.sets[doneSets.length].reps, kg: wasLast.sets[doneSets.length].kg }; } // preload the next set from last time
         var ord = visibleEx(ex.muscle), oi = ord.map(function (e) { return e.id; }).indexOf(exId);
-        if (!(ord[oi + 1] && Store.isSuper(ord[oi + 1].id))) { Rest.start(); }   // superset: go straight to the next exercise
+        if (!(ord[oi + 1] && Store.isSuper(ord[oi + 1].id))) { Rest.start(exId); }   // superset: go straight to the next exercise
         refreshLogger(exId);
         if (doneSets.length === ex.sets) { toast('Exercise done. Tap Next when you are ready.'); var nb = view.querySelector('[data-act="wk-next"]'); if (nb) { nb.classList.add('ready'); } }
         break;
@@ -1274,11 +1319,19 @@
       case 'req-send': case 'req-copy':
         var rt = document.getElementById('rq-t').value, rx = document.getElementById('rq-x').value.trim();
         if (!rx) { toast('Write a few words first'); break; }
-        var rbody = rx + '\n\nFrom user: ' + Store.user();
+        var rbody = rx + '\n\n---\nApp ' + APP_VERSION + ' · ' + deviceInfo();
         if (act === 'req-send') { window.open('https://github.com/umar8092/gym-tracker/issues/new?title=' + encodeURIComponent(rt + ': ' + rx.slice(0, 60)) + '&body=' + encodeURIComponent(rbody), '_blank', 'noopener'); }
         else if (navigator.clipboard) { navigator.clipboard.writeText(rt + ': ' + rbody).then(function () { toast('Copied'); }, function () { toast('Could not copy'); }); }
         break;
       case 'quote': nextQuote(); startQuotes(); break;
+      case 'csv': exportCSV(el.dataset.k); toast('Spreadsheet saved'); break;
+      case 'ics': var rt2 = (document.getElementById('rm-t') || {}).value || '18:00'; try { localStorage.setItem('gymtracker.remind', rt2); } catch (err) {} if (!Object.keys(Store.schedule()).length) { toast('Set your training days first'); break; } download('gym-workout-reminders.ics', icsFile(rt2), 'text/calendar;charset=utf-8'); toast('Open the file to add the reminders'); break;
+      case 'delete-open': deleteSheet(); break;
+      case 'delete-go':
+        var dn = (document.getElementById('del-n').value || '').trim().toLowerCase(), derr = document.getElementById('del-err');
+        if (dn !== Store.user()) { derr.textContent = 'That is not your username. Type it exactly to confirm.'; break; }
+        el.disabled = true; el.textContent = 'Deleting…'; derr.textContent = '';
+        Sync.deleteAll(Store.user()).then(function () { Store.reset(); Store.signOut(); loginReset(); draft = {}; calState = null; closeSheet(true); location.hash = '#/'; render(); toast('All your data was deleted'); }, function (e2) { el.disabled = false; el.textContent = 'Delete everything'; derr.textContent = 'Could not reach the cloud (' + e2.message + '). Nothing was deleted. Try again when you are online.'; }); break;
       case 'prog-go': progSel = el.dataset.id; location.hash = '#/home/progress'; render(); break;
       case 'awake': var aw = el.getAttribute('aria-checked') !== 'true'; try { localStorage.setItem('gymtracker.awake', aw ? 'on' : 'off'); } catch (err) {} el.setAttribute('aria-checked', String(aw)); break;
       case 'unit': try { localStorage.setItem('gymtracker.unit', el.dataset.v); } catch (err) {} Stats.setUnit(el.dataset.v); draft = {}; render(true); break;
@@ -1351,7 +1404,7 @@
       case 'mode': progMode = el.dataset.v === 'session' ? 'session' : +el.dataset.v; render(true); break;
       case 'rest-on': var c1 = Rest.cfg(); c1.on = !c1.on; Rest.setCfg(c1); el.setAttribute('aria-checked', String(c1.on)); break;
       case 'rest-sec':
-        var c2 = Rest.cfg(); c2.sec = num(el.dataset.v); Rest.setCfg(c2);
+        var c2 = Rest.cfg(); if (el.dataset.v === 'smart') { c2.smart = true; } else { c2.smart = false; c2.sec = num(el.dataset.v); } Rest.setCfg(c2);
         el.parentNode.querySelectorAll('.chip').forEach(function (b) { b.setAttribute('aria-pressed', String(b === el)); }); break;
       case 'copy-summary':
         if (navigator.clipboard) { navigator.clipboard.writeText(summaryText_).then(function () { toast('Summary copied'); }, function () { toast('Could not copy'); }); } else { toast('Copy is not available here'); }

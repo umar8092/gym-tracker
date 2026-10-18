@@ -197,5 +197,16 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
     await q.locator('#install-fab').click(); await q.waitForSelector('#sheet [data-act="install-now"]'); await q.click('[data-act="install-now"]'); await q.waitForTimeout(250);
     ok(await q.evaluate(() => window.__prompted === true), 'desktop: Install now triggers the browser install prompt'); await ctx.close(); }
 
+  // 17. smart rest timer
+  p = await open(390, 844, FRI, '#/m/chest/1', { logs: [], weights, profile });
+  await p.locator('section.ex [data-act="kgset"]').first().click(); await p.locator('section.ex [data-act="log"]').click(); await p.waitForTimeout(250);
+  ok((await p.locator('#rest-t').textContent()).includes('2:30') || (await p.locator('#rest-t').textContent()).includes('2:29'), 'smart rest: about 2:30 after a big barbell lift');
+  await p.goto(URL + '#/m/shoulders/2'); await p.waitForTimeout(250);
+  await p.locator('section.ex [data-act="kgset"]').first().click(); await p.locator('section.ex [data-act="log"]').click(); await p.waitForTimeout(250);
+  ok((await p.locator('#rest-t').textContent()).includes('1:15') || (await p.locator('#rest-t').textContent()).includes('1:14'), 'smart rest: about 1:15 after a small lateral raise');
+  await p.locator('#rest [data-rest="add"]').click(); await p.locator('section.ex [data-act="log"]').click(); await p.waitForTimeout(250);
+  ok((await p.locator('#rest-t').textContent()).includes('1:30') || (await p.locator('#rest-t').textContent()).includes('1:29'), 'adding 15 seconds is remembered for that exercise');
+  await p.context().close();
+
   console.log(fails.length ? '\nFAILURES:\n' + fails.join('\n') : '\nv3 UI tests OK'); await b.close(); process.exit(fails.length ? 1 : 0);
 })();

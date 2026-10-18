@@ -30,8 +30,8 @@ exports.fakeCloud = function (allowed) {
       const okName = n => (allowed ? allowed.includes(n) : /^[a-z0-9_]{3,20}$/.test(n));
       if (path === ':commit') { // database-level call: the rules are checked per written document
         const writes = JSON.parse(req.postData()).writes;
-        if (writes.some(w => !okName((w.update.name.split('/users/')[1] || '').split('/')[0]))) return json(route, 403, { error: { status: 'PERMISSION_DENIED' } });
-        for (const w of writes) docs.set(w.update.name.split('/documents')[1], w.update.fields);
+        if (writes.some(w => !okName(((w.update ? w.update.name : w.delete).split('/users/')[1] || '').split('/')[0]))) return json(route, 403, { error: { status: 'PERMISSION_DENIED' } });
+        for (const w of writes) { if (w.delete) docs.delete(w.delete.split('/documents')[1]); else docs.set(w.update.name.split('/documents')[1], w.update.fields); }
         return json(route, 200, { writeResults: [] });
       }
       if (!name || !okName(name)) return json(route, 403, { error: { status: 'PERMISSION_DENIED' } });

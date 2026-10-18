@@ -141,6 +141,15 @@
     onStatus: function (f) { listeners.push(f); },
     // a friend's recent sets (updated in the last 30 days), read only. Costs one cloud read per set returned, so only called on a button press.
     peek: function (name) { return queryAll(name, 'logs', Date.now() - 30 * 864e5).then(function (r) { return r.rows.filter(function (l) { return !l.del; }); }); },
+    // delete everything this user has in the cloud (logs, weights, settings). Returns how many documents were removed.
+    deleteAll: function (name) {
+      var base = 'projects/' + PROJECT + '/databases/(default)/documents/users/' + name;
+      return Promise.all([queryAll(name, 'logs', 0), queryAll(name, 'weights', 0)]).then(function (res) {
+        var dels = res[0].rows.map(function (d) { return { delete: base + '/logs/' + d.id }; }).concat(res[1].rows.map(function (d) { return { delete: base + '/weights/' + d.id }; }), [{ delete: base + '/meta/settings' }]), chunks = [], i;
+        for (i = 0; i < dels.length; i += 400) { chunks.push(dels.slice(i, i + 400)); }
+        return chunks.reduce(function (pr, ch) { return pr.then(function () { return api(':commit', { method: 'POST', body: JSON.stringify({ writes: ch }) }).then(function (r) { if (!r.ok) { throw new Error('Cloud error ' + r.status); } }); }); }, Promise.resolve()).then(function () { return dels.length - 1; });
+      });
+    },
     // is this username allowed? resolves 'ok' | 'denied' | 'offline' | 'slow' (no answer within the deadline)
     check: function (name) {
       return api('/users/' + name + '/meta/settings').then(function (r) { return r.status === 403 ? 'denied' : (r.ok || r.status === 404) ? 'ok' : 'error'; })
