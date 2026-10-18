@@ -180,5 +180,22 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
   ok(true, 'story card is 1080 x 1920');
   await p.context().close();
 
+  // 16. install as an app
+  p = await open(390, 844, FRI, '#/', { logs: [], weights, profile });
+  ok(await p.locator('#install-fab').isVisible() && (await p.locator('.install-card').count()) === 1, 'a round install button and a Home card are offered on a phone browser');
+  await p.locator('#install-fab').click(); await p.waitForSelector('#sheet .istep');
+  ok((await p.locator('.istep li').count()) === 3 && (await p.locator('#sheet').textContent()).includes('Turn this into an app'), 'the dialog explains it in three steps');
+  await p.click('[data-act="install-later"]'); await p.waitForTimeout(250);
+  ok((await p.locator('.install-card').count()) === 0 && await p.locator('#install-fab').isVisible(), 'Not now hides the Home card but keeps the small button');
+  await p.goto(URL + '#/m/arms'); await p.waitForTimeout(250); ok(!(await p.locator('#install-fab').isVisible()), 'the button stays out of the way on the workout page');
+  await p.context().close();
+  // iPhone Safari gets the Share menu steps, and beforeinstallprompt gives a one-tap Install now
+  { const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1', reducedMotion: 'reduce' }); const q = await ctx.newPage(); await q.clock.install({ time: FRI }); await signIn(q, 'umar', { logs: [], weights, profile }); await q.goto(URL + '#/'); await q.waitForTimeout(300);
+    await q.locator('#install-fab').click(); await q.waitForSelector('#sheet .istep'); ok((await q.locator('.istep').textContent()).includes('Add to Home Screen'), 'iPhone: steps mention Share and Add to Home Screen'); await ctx.close(); }
+  { const ctx = await b.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' }); const q = await ctx.newPage(); await q.clock.install({ time: FRI }); await signIn(q, 'umar', { logs: [], weights, profile }); await q.goto(URL + '#/'); await q.waitForTimeout(300);
+    await q.evaluate(() => { window.__installEvt = { prompt() { window.__prompted = true; }, userChoice: Promise.resolve({ outcome: 'accepted' }) }; });
+    await q.locator('#install-fab').click(); await q.waitForSelector('#sheet [data-act="install-now"]'); await q.click('[data-act="install-now"]'); await q.waitForTimeout(250);
+    ok(await q.evaluate(() => window.__prompted === true), 'desktop: Install now triggers the browser install prompt'); await ctx.close(); }
+
   console.log(fails.length ? '\nFAILURES:\n' + fails.join('\n') : '\nv3 UI tests OK'); await b.close(); process.exit(fails.length ? 1 : 0);
 })();

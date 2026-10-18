@@ -1,14 +1,58 @@
 {
   "name": "Gym Workout Tracker",
   "short_name": "Gym Workout",
-  "description": "Pick today's muscle, log sets and kilograms, and track progress.",
+  "description": "Log every round, beat last time's you, and track your progress. Works offline.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#0A0A0B",
   "theme_color": "#0A0A0B",
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "id": "./",
+  "categories": [
+    "health",
+    "fitness",
+    "sports"
+  ],
+  "shortcuts": [
+    {
+      "name": "Today's workout",
+      "url": "./#/today",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Calendar",
+      "url": "./#/calendar",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
   ]
 }

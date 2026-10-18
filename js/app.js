@@ -168,6 +168,45 @@
     doShare('save'); if (navigator.clipboard) { navigator.clipboard.writeText(cur.text).catch(function () {}); }
   }
 
+  /* =========================================================  INSTALL AS AN APP  */
+  var Install = {
+    ua: navigator.userAgent || '',
+    standalone: function () { return (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true; },
+    ios: function () { return /iPad|iPhone|iPod/.test(Install.ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); },
+    android: function () { return /Android/i.test(Install.ua); },
+    firefox: function () { return /Firefox|FxiOS/.test(Install.ua); },
+    mobile: function () { return Install.ios() || Install.android(); },
+    dismissed: function () { try { var d = +localStorage.getItem('gymtracker.install.no'); return d && Date.now() - d < 14 * 864e5; } catch (e) { return false; } },
+    available: function () { return !Install.standalone() && !(Install.firefox() && !Install.mobile()); },   // desktop Firefox cannot install web apps
+    steps: function () {
+      if (Install.ios()) { return ['Tap the <b>Share</b> button (the square with an arrow) at the bottom of Safari.', 'Scroll down and tap <b>Add to Home Screen</b>.', 'Tap <b>Add</b>. The app appears on your home screen.']; }
+      if (Install.android()) { return ['Tap the <b>⋮ menu</b> at the top right of Chrome.', 'Tap <b>Install app</b> (or <b>Add to Home screen</b>).', 'Tap <b>Install</b>. The app appears with your other apps.']; }
+      if (/Safari/.test(Install.ua) && !/Chrome|Chromium|Edg/.test(Install.ua)) { return ['In the menu bar choose <b>File</b>.', 'Choose <b>Add to Dock</b>.', 'Click <b>Add</b>. Open it from your Dock like any app.']; }
+      return ['Look for the <b>install icon</b> at the right end of the address bar (a small screen with an arrow), or open the <b>⋮ menu</b>.', 'Choose <b>Install Gym Workout Tracker</b>.', 'Click <b>Install</b>. It opens in its own window and appears in your apps.'];
+    }
+  };
+  function installSheet() {
+    var steps = Install.steps(), can = !!window.__installEvt;
+    var where = Install.ios() || Install.android() ? 'home screen' : 'computer';
+    openSheet('<h2>Turn this into an app</h2><p class="sub">Add Gym Workout Tracker to your ' + where + '. It opens full screen like any app, loads faster, and keeps working without internet.</p>' +
+      (can ? '<button class="btn primary block" type="button" data-act="install-now" style="margin-top:14px">Install now</button><p class="lab" style="margin-top:18px"><span>Or do it by hand</span></p>' : '<p class="lab" style="margin-top:16px"><span>3 quick steps</span></p>') +
+      '<ol class="istep">' + steps.map(function (t, i) { return '<li><span class="n">' + (i + 1) + '</span><span>' + t + '</span></li>'; }).join('') + '</ol>' +
+      '<p class="muted small-note">Your workouts stay the same. Nothing to download from an app store.</p><div class="btns"><button class="link" type="button" data-act="install-later">Not now</button></div>', 'sheet-install');
+  }
+  function installIcon() { return '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2.2"/><path d="M12 8v6M9.5 11.5L12 14l2.5-2.5M10.5 18.5h3"/></svg>'; }
+  // a small round button on the main pages, plus a Home card; both go away once installed or dismissed
+  function installFab() {
+    var fab = document.getElementById('install-fab'), show = Install.available() && /^(home|today|calendar|plan)$/.test(route().name) && !document.body.classList.contains('gated');
+    if (!show) { if (fab) { fab.hidden = true; } return; }
+    if (!fab) { fab = document.createElement('button'); fab.id = 'install-fab'; fab.type = 'button'; fab.className = 'install-fab'; fab.setAttribute('data-act', 'install-open'); fab.setAttribute('aria-label', 'Install the app'); fab.innerHTML = installIcon() + '<span>Get the app</span>'; document.body.appendChild(fab); }
+    fab.hidden = false;
+  }
+  function installCard() {
+    if (!Install.available() || Install.dismissed()) { return ''; }
+    return '<section class="d-card install-card"><span class="ic">' + installIcon() + '</span><div><b>Turn this into an app</b><p>Add it to your ' + (Install.mobile() ? 'home screen' : 'computer') + ' in 3 quick steps. Opens full screen and works offline.</p></div><button class="btn small" type="button" data-act="install-open">Show me how</button></section>';
+  }
+  window.addEventListener('appinstalled', function () { window.__installEvt = null; closeSheet(true); installFab(); toast('Installed. Open it from your home screen.'); });
+
   /* =========================================================  3D ON DEMAND  */
   // The 3D engine, the model and its textures (about 1.8 MB) are only fetched when someone opens a form guide.
   var Engine = window.Engine || { unmountAll: function () {}, redraw: function () {}, mount: function () {} };   // the old 2D engine is gone; calls stay harmless
@@ -466,31 +505,81 @@
   }
 
   /* ---------- friends (read only) ---------- */
-  var friendData = {};
+  /* ---------- friends (read only): cards on Home that open a profile dialog ---------- */
+  var FRIEND_FRESH = 6 * 3600 * 1000, fLoading = {};
   function friendList() { try { return JSON.parse(localStorage.getItem('gymtracker.friends')) || []; } catch (e) { return []; } }
   function saveFriends(l) { try { localStorage.setItem('gymtracker.friends', JSON.stringify(l)); } catch (e) {} }
-  function friendCard(name) {
-    var f = friendData[name], h = '<li class="friend"><div class="friend-top"><b>' + esc(name) + '</b><span><button class="link" type="button" data-act="friend-load" data-n="' + esc(name) + '">' + (f ? 'Refresh' : 'Load') + '</button> <button class="link" type="button" data-act="friend-del" data-n="' + esc(name) + '">Remove</button></span></div>';
-    if (f === 'loading') { return h + '<p class="muted">Loading…</p></li>'; }
-    if (f === 'error') { return h + '<p class="muted">Could not load. Check the name and your connection.</p></li>'; }
-    if (!f) { return h + '<p class="muted">Tap Load to see their last two weeks.</p></li>'; }
-    return h + '<p class="muted">Last 14 days: <b>' + f.days + '</b> sessions. Last 7 days: <b>' + f.sets + '</b> sets, ' + Math.round(Stats.toU(f.vol)).toLocaleString() + ' ' + U() + ' lifted.</p>' +
-      (f.best.length ? '<p class="muted">Best recent lifts: ' + f.best.map(function (b) { return esc(b.name) + ' ' + wStr(b.kg) + ' ' + U() + ' × ' + b.reps; }).join(', ') + '.</p>' : '') + '</li>';
+  function fcache() { try { return JSON.parse(localStorage.getItem('gymtracker.fcache')) || {}; } catch (e) { return {}; } }
+  function fcacheSave(c) { try { localStorage.setItem('gymtracker.fcache', JSON.stringify(c)); } catch (e) {} }
+  // fetch (or reuse, if fresh) a friend's last 30 days; keeps only what the profile needs
+  function friendLoad(name, force) {
+    var c = fcache()[name]; if (c && !force && Date.now() - c.at < FRIEND_FRESH) { return Promise.resolve(c); }
+    if (fLoading[name]) { return fLoading[name]; }
+    fLoading[name] = Sync.peek(name).then(function (l) {
+      var all = fcache(); all[name] = { at: Date.now(), logs: l.slice(0, 400).map(function (x) { return [x.d, x.m, x.e, x.reps, x.kg]; }) }; fcacheSave(all); delete fLoading[name]; return all[name];
+    }, function (e) { delete fLoading[name]; throw e; });
+    return fLoading[name];
   }
-  function friendSummary(logs) {
-    var t = Store.today(), d14 = Store.addDays(t, -13), d7 = Store.addDays(t, -6), days = {}, sets = 0, vol = 0, best = {};
-    logs.forEach(function (l) {
-      if (l.d >= d14) { days[l.d] = 1; }
-      if (l.d >= d7) { sets++; vol += l.kg * l.reps; }
-      var e = Stats.epley(l.kg, l.reps); if (l.kg > 0 && (!best[l.e] || e > best[l.e].e)) { best[l.e] = { e: e, kg: l.kg, reps: l.reps, name: Data.byId[l.e] ? Data.byId[l.e].name : 'Custom exercise' }; }
+  function friendStats(rec) {
+    var t = Store.today(), ws = weekStart(t), we = Store.addDays(ws, 6), d14 = Store.addDays(t, -13), byDay = {}, best = {}, sets7 = 0, vol7 = 0, d7 = Store.addDays(t, -6);
+    rec.logs.forEach(function (r) {
+      var d = r[0], o = byDay[d] || (byDay[d] = { d: d, m: [], sets: 0, vol: 0 }); if (o.m.indexOf(r[1]) < 0) { o.m.push(r[1]); } o.sets++; o.vol += r[3] * r[4];
+      if (d >= d7) { sets7++; vol7 += r[3] * r[4]; }
+      var e = Stats.epley(r[4], r[3]); if (r[4] > 0 && (!best[r[2]] || e > best[r[2]].e)) { best[r[2]] = { e: e, kg: r[4], reps: r[3], id: r[2] }; }
     });
-    return { days: Object.keys(days).length, sets: sets, vol: Math.round(vol), best: Object.keys(best).map(function (k) { return best[k]; }).sort(function (a, b) { return b.e - a.e; }).slice(0, 3) };
+    var days = Object.keys(byDay).sort(), week = [], i, wk = 0, wsets = 0, wvol = 0;
+    for (i = 0; i < 7; i++) { var ds = Store.addDays(ws, i), o = byDay[ds]; week.push({ d: ds, m: o ? o.m : [] }); if (o) { wk++; wsets += o.sets; wvol += o.vol; } }
+    var lastD = days[days.length - 1];
+    return { days14: days.filter(function (d) { return d >= d14; }).length, sets7: sets7, vol7: vol7, week: week, wk: wk, wsets: wsets, wvol: wvol, last: lastD ? byDay[lastD] : null,
+      recent: days.slice(-5).reverse().map(function (d) { return byDay[d]; }),
+      best: Object.keys(best).map(function (k) { return best[k]; }).sort(function (a, b) { return b.e - a.e; }).slice(0, 3), any: days.length > 0 };
+  }
+  function avatar(name, big) {
+    var h = 0, i; for (i = 0; i < name.length; i++) { h = (h * 31 + name.charCodeAt(i)) % 3; }
+    return '<span class="av av' + h + (big ? ' big' : '') + '" aria-hidden="true">' + esc(name.charAt(0).toUpperCase()) + '</span>';
+  }
+  function ago(ts) { var m = Math.round((Date.now() - ts) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; }
+  function dayName(ds) { return DAYS[Store.parse(ds).getDay()]; }
+  function weekDots(week) { return '<span class="fdots" aria-hidden="true">' + week.map(function (x) { return '<i class="' + (x.m.length ? 'on' : '') + '"></i>'; }).join('') + '</span>'; }
+  function friendCard(name) {
+    var rec = fcache()[name], body;
+    if (fLoading[name] && !rec) { body = '<span class="fsub">Loading…</span>'; }
+    else if (!rec) { body = '<span class="fsub">Tap to load their workouts</span>'; }
+    else { var st = friendStats(rec); body = st.any ? '<span class="fsub">' + (st.last ? 'Last: ' + dayName(st.last.d).slice(0, 3) + ' · ' + mList(st.last.m) : '') + '</span><span class="fsub">' + st.wk + (st.wk === 1 ? ' session' : ' sessions') + ' this week</span>' : '<span class="fsub">No workouts in the last 30 days</span>'; }
+    return '<li><button type="button" class="fcard" data-act="friend-open" data-n="' + esc(name) + '">' + avatar(name) + '<span class="fmain"><b>' + esc(name) + '</b>' + body + '</span>' + (rec ? weekDots(friendStats(rec).week) : '') + '</button></li>';
   }
   function friendsSection() {
     var l = friendList();
-    return '<div class="sec" id="sec-friends"><h2>Friends</h2><p class="sub">Type a friend\'s username to see their activity. Anyone who knows a username can look at it. Only loads when you tap, to keep cloud use low.</p>' +
-      (l.length ? '<ul class="friends">' + l.map(friendCard).join('') + '</ul>' : '') +
-      '<form class="row-form" data-form="friend"><div class="fld"><label for="fr-n">Username</label><input id="fr-n" class="text-in" maxlength="20" autocapitalize="none" autocomplete="off"></div><button class="btn small" type="submit">Add</button></form></div>';
+    return '<div class="sec" id="sec-friends"><h2>Friends</h2><p class="sub">Add a friend\'s username to see how their week is going. Anyone who knows a username can look at it, so only add people you trust.</p>' +
+      (l.length ? '<ul class="friends">' + l.map(friendCard).join('') + '</ul>' : '<p class="empty">No friends yet. Add a username below, and their latest workouts show up here.</p>') +
+      '<form class="row-form" data-form="friend"><div class="fld"><label for="fr-n">Friend\'s username</label><input id="fr-n" class="text-in" maxlength="20" autocapitalize="none" autocomplete="off"></div><button class="btn small" type="submit">Add friend</button></form></div>';
+  }
+  // refresh stale friends in the background, then redraw only the Friends section (called after Home renders)
+  function friendsRefresh() {
+    friendList().forEach(function (n) {
+      var c = fcache()[n]; if (c && Date.now() - c.at < FRIEND_FRESH) { return; }
+      friendLoad(n).then(function () { var el = document.getElementById('sec-friends'); if (el && route().name === 'home') { el.outerHTML = friendsSection(); } }, function () {});
+    });
+  }
+  function friendSheet(name) {
+    var rec = fcache()[name]; if (!rec) { return openSheet('<h2>' + esc(name) + '</h2><p class="muted" id="fs-load">Loading…</p>', 'sheet-friend'); }
+    var st = friendStats(rec), mine = weekMine();
+    var dots = st.week.map(function (x, i) { return '<div class="fd' + (x.m.length ? ' on' : '') + '"><b>' + DAYS[(i + 1) % 7].slice(0, 1) + '</b><span>' + (x.m.length ? x.m.map(mShort).join('<br>') : '·') + '</span></div>'; }).join('');
+    var vs = function (label, a, b) { var top = Math.max(a, b, 1); return '<div class="vs-row"><span>' + label + '</span><div class="vs-bars"><i class="me" style="width:' + Math.round(a / top * 100) + '%"></i><i class="fr" style="width:' + Math.round(b / top * 100) + '%"></i></div><b class="num">' + a + ' · ' + b + '</b></div>'; };
+    var lead = mine.sets === st.wsets ? 'You are level this week.' : mine.sets > st.wsets ? 'You are ahead by ' + (mine.sets - st.wsets) + (mine.sets - st.wsets === 1 ? ' set' : ' sets') + ' this week.' : esc(name) + ' is ahead by ' + (st.wsets - mine.sets) + (st.wsets - mine.sets === 1 ? ' set' : ' sets') + ' this week.';
+    var body = '<div class="fhead">' + avatar(name, true) + '<div><h2>' + esc(name) + '</h2><p class="sub">Updated ' + ago(rec.at) + '. <button class="link" type="button" data-act="friend-refresh" data-n="' + esc(name) + '">Refresh</button></p></div></div>';
+    if (!st.any) { return openSheet(body + '<p class="empty">No workouts in the last 30 days. When they log something, it shows up here.</p><div class="btns"><button class="link danger" type="button" data-act="friend-del" data-n="' + esc(name) + '">Remove friend</button></div>', 'sheet-friend'); }
+    body += '<div class="stats four fstats"><div><b class="num">' + st.wk + '</b><span>Sessions this week</span></div><div><b class="num">' + st.sets7 + '</b><span>Sets, 7 days</span></div><div><b class="num">' + Math.round(Stats.toU(st.vol7)).toLocaleString() + '</b><span>' + U() + ' lifted, 7 days</span></div><div><b class="num">' + st.days14 + '</b><span>Days trained, 14 days</span></div></div>' +
+      '<p class="lab" style="margin-top:18px"><span>This week</span></p><div class="fweekrow">' + dots + '</div>' +
+      '<p class="lab" style="margin-top:18px"><span>You vs ' + esc(name) + '</span><span>This week</span></p><div class="vs">' + vs('Sessions', mine.sessions, st.wk) + vs('Sets', mine.sets, st.wsets) + '</div><p class="sub" style="margin-top:6px">' + lead + '</p>' +
+      (st.best.length ? '<p class="lab" style="margin-top:18px"><span>Best lifts, last 30 days</span></p><ul class="hist-list">' + st.best.map(function (b) { var ex = Data.byId[b.id]; return '<li><span class="hd">' + esc(ex ? ex.name : 'Custom exercise') + '</span><span class="hs num">' + wStr(b.kg) + ' ' + U() + ' × ' + b.reps + '</span></li>'; }).join('') + '</ul>' : '') +
+      '<p class="lab" style="margin-top:18px"><span>Recent workouts</span></p><ul class="hist-list">' + st.recent.map(function (o) { return '<li><span class="hd">' + dayName(o.d).slice(0, 3) + ' ' + Store.parse(o.d).getDate() + ' · ' + mList(o.m) + '</span><span class="hs num">' + o.sets + ' sets, ' + Math.round(Stats.toU(o.vol)).toLocaleString() + ' ' + U() + '</span></li>'; }).join('') + '</ul>' +
+      '<div class="btns"><button class="link danger" type="button" data-act="friend-del" data-n="' + esc(name) + '">Remove friend</button></div>';
+    return openSheet(body, 'sheet-friend');
+  }
+  function weekMine() {
+    var t = Store.today(), ws = weekStart(t), we = Store.addDays(ws, 6), logs = Store.allLogs().filter(function (l) { return l.d >= ws && l.d <= we; }), days = {};
+    logs.forEach(function (l) { days[l.d] = 1; }); return { sessions: Object.keys(days).length, sets: logs.length };
   }
 
   /* ---------- weekly summary text ---------- */
@@ -873,7 +962,7 @@
     var t = Store.today(), p = Store.profile(), ws = Store.weights();
     var P = dashParts(t);
     var first = !Store.allLogs().length;
-    var h = '<h1>Home</h1>' + tonightStrip(t) + '<div class="dash over"><section class="d-card d-stats">' + (first ? welcomeHTML(t) : P.stats) + '</section><section class="tape">' + P.tape + '</section><section class="d-card d-week">' + P.week + '</section><section class="d-card d-last">' + P.last + '</section><section class="d-card d-bal" id="sec-balance">' + P.bal + '</section></div>' + howSection() + recordsSection() + measuresSection() + friendsSection() + '<div class="sec" id="sec-weight"><h2>Body weight</h2><p class="sub">Goal ' + wStr(p.goalKg) + ' ' + U() + '. Weigh in at the same time of day for a clear trend.</p>';
+    var h = '<h1>Home</h1>' + tonightStrip(t) + installCard() + '<div class="dash over"><section class="d-card d-stats">' + (first ? welcomeHTML(t) : P.stats) + '</section><section class="tape">' + P.tape + '</section><section class="d-card d-week">' + P.week + '</section><section class="d-card d-last">' + P.last + '</section><section class="d-card d-bal" id="sec-balance">' + P.bal + '</section></div>' + howSection() + recordsSection() + measuresSection() + friendsSection() + '<div class="sec" id="sec-weight"><h2>Body weight</h2><p class="sub">Goal ' + wStr(p.goalKg) + ' ' + U() + '. Weigh in at the same time of day for a clear trend.</p>';
     if (ws.length >= 2) {
       h += Charts.line(ws.map(function (w) { return { x: Store.parse(w.d).getTime() / 864e5, y: Stats.toU(w.kg), label: longDate(w.d) + ': ' + wStr(w.kg) + ' ' + U() + '' }; }),
         { goal: Stats.toU(p.goalKg), unit: ' ' + U() + '', aria: 'Body weight over time, latest ' + wStr(ws[ws.length - 1].kg) + ' ' + (U() === 'lb' ? 'pounds' : 'kilograms') + ', goal ' + wStr(p.goalKg),
@@ -964,7 +1053,7 @@
       '<div class="fld"><label for="rq-t">What is it?</label><select id="rq-t" class="text-in"><option>Feature</option><option>Exercise</option><option>Problem with something</option></select></div>' +
       '<div class="fld" style="margin-top:8px"><label for="rq-x">Describe it</label><textarea id="rq-x" class="text-in" rows="3" maxlength="500" placeholder="e.g. Add cable fly for chest, or: show my weekly volume per muscle"></textarea></div>' +
       '<div class="btns" style="margin-top:10px"><button class="btn small" type="button" data-act="req-send">Open on GitHub</button><button class="link" type="button" data-act="req-copy">Copy text</button></div></details>';
-    h += '<details class="sec fold"><summary><span class="fh"><h2>Install on your phone</h2></span></summary><p class="sub">' + (window.__installEvt ? 'Add Gym Workout Tracker to your home screen so it opens like an app.' : /iPhone|iPad/.test(navigator.userAgent) ? 'In Safari tap the Share button, then Add to Home Screen.' : 'Open your browser menu and choose Install app or Add to Home screen.') + '</p>' + (window.__installEvt ? '<button class="btn small" type="button" data-act="install">Install</button>' : '') + '</details>';
+    if (Install.available()) { h += '<details class="sec fold"><summary><span class="fh"><h2>Install as an app</h2></span></summary><p class="sub">Open it full screen from your home screen or desktop, and use it offline.</p><div class="btns"><button class="btn small" type="button" data-act="install-open">Show me how</button></div></details>'; }
     h += '<details class="sec fold"><summary><span class="fh"><h2>Account</h2></span></summary><p>Signed in as <b>' + esc(Store.user()) + '</b>. <button class="link" type="button" data-act="copy-name">Copy</button></p><p class="small-note">This username is the only key to your workouts. Keep it somewhere safe and private: you need it to sign in on another phone, and anyone who knows it can open your data.</p><p class="sub" id="sync-state">' + esc(syncText()) + '</p>' +
       '<div class="btns"><button class="btn small" type="button" data-act="sync-now">Sync now</button><button class="link" type="button" data-act="switch-user">Switch user</button></div></details>';
     h += '<details class="sec fold"><summary><span class="fh"><h2>Your data</h2></span></summary><p class="sub">Saved on this device and copied to the cloud when online. You can also export a backup file.</p>' +
@@ -1118,6 +1207,8 @@
       if (on) { a.setAttribute('aria-current', 'page'); } else { a.removeAttribute('aria-current'); }
     });
     view.querySelectorAll('.muscles').forEach(function (box) { showMuscle(box, box.closest('details') ? Data.byId[box.closest('details').dataset.ex].mus.view : 'front'); });
+    if (r.name === 'home') { friendsRefresh(); }
+    installFab();
     startSessTick(); keepAwake(r.name === 'm'); startQuotes(); var meEl = document.getElementById('me'); if (meEl) { meEl.textContent = Store.user() || ''; }
     if (!keepScroll) { window.scrollTo(0, 0); }
     if (r.name === 'home' && r.arg) { var an = document.getElementById('sec-' + r.arg); if (an) { an.scrollIntoView(); } }
@@ -1149,7 +1240,7 @@
   document.addEventListener('click', function (e) {   // on the document so buttons inside dialogs (outside the page area) work too
     var el = e.target.closest('[data-act],[data-mv]');
     if (!el) { closeMenus(); return; }
-    if (!view.contains(el) && !el.closest('#sheet')) { return; }
+    if (!view.contains(el) && !el.closest('#sheet') && el.id !== 'install-fab') { return; }
     if (el.dataset.mv) { showMuscle(el.closest('.muscles'), el.dataset.mv); return; }
     var act = el.dataset.act, secEl = el.closest('section.ex'), exId = secEl && secEl.dataset.ex, dr = exId && draft[exId];
     if (act !== 'menu' && act !== 'kgset') { closeMenus(); }
@@ -1222,19 +1313,24 @@
       case 'share-save': doShare('save'); break;
       case 'share-copy': doShare('copy'); break;
       case 'sheet-close': closeSheet(); break;
-      case 'install':
-        if (window.__installEvt) { window.__installEvt.prompt(); window.__installEvt = null; } break;
+      case 'install': case 'install-open': installSheet(); break;
+      case 'install-now':
+        if (window.__installEvt) { var ie = window.__installEvt; ie.prompt(); ie.userChoice.then(function (c) { if (c && c.outcome === 'accepted') { closeSheet(true); } window.__installEvt = null; installFab(); }); } break;
+      case 'install-later': try { localStorage.setItem('gymtracker.install.no', String(Date.now())); } catch (err) {} closeSheet(); if (route().name === 'home') { render(true); } break;
       case 'lib-pick':
         var hit = libHits[+el.dataset.i]; if (!hit) { break; }
         document.getElementById('cx-n').value = hit.name;
         document.getElementById('cx-m').value = LIB_MUSCLE[(hit.primaryMuscles || [])[0]] || 'arms';
         document.getElementById('cx-e').value = LIB_EQUIP[hit.equipment] || 'Dumbbells';
         document.getElementById('cx-res').innerHTML = '<p class="muted">Filled in below. Check the muscle and equipment, then Add.</p>'; break;
-      case 'friend-load':
-        var fn = el.dataset.n; friendData[fn] = 'loading'; render(true);
-        Sync.peek(fn).then(function (l) { friendData[fn] = friendSummary(l); render(true); }, function () { friendData[fn] = 'error'; render(true); }); break;
+      case 'friend-open':
+        var fno = el.dataset.n, had = !!fcache()[fno]; friendSheet(fno);
+        friendLoad(fno).then(function () { if (document.getElementById('sheet')) { closeSheet(true); friendSheet(fno); } var sec = document.getElementById('sec-friends'); if (sec) { sec.outerHTML = friendsSection(); } },
+          function () { var l = document.getElementById('fs-load'); if (l) { l.textContent = 'Could not load. Check the username and your connection.'; } else { toast('Could not refresh. Showing what was saved.'); } }); break;
+      case 'friend-refresh':
+        var fnr = el.dataset.n; el.textContent = 'Refreshing…'; friendLoad(fnr, true).then(function () { closeSheet(true); friendSheet(fnr); var sec = document.getElementById('sec-friends'); if (sec) { sec.outerHTML = friendsSection(); } }, function () { toast('Could not refresh'); el.textContent = 'Refresh'; }); break;
       case 'friend-del':
-        saveFriends(friendList().filter(function (n) { return n !== el.dataset.n; })); render(true); break;
+        saveFriends(friendList().filter(function (n) { return n !== el.dataset.n; })); closeSheet(); render(true); toast('Friend removed'); break;
       case 'warm':
         var wp = secEl.querySelector(".warmup"); wp.hidden = !wp.hidden;
         if (!wp.hidden) {

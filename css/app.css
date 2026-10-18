@@ -704,3 +704,44 @@ body.sheet-open { overflow: hidden; }
 .tabs a.brand svg.logo { width: auto; height: 38px; stroke: none; fill: currentColor; stroke-width: 0; }
 .tabs a.brand svg.logo text { fill: var(--red); }
 .share-mini { margin-left: 10px; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; font-weight: 800; color: var(--muted); text-decoration: underline; text-decoration-color: var(--red); text-underline-offset: 4px; }
+
+/* friends */
+.friends { list-style: none; margin: 12px 0; padding: 0; display: grid; gap: 10px; }
+.fcard { width: 100%; display: flex; align-items: center; gap: 14px; text-align: left; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); min-height: 68px; color: inherit; }
+.fcard:hover { border-color: var(--muted); }
+.fmain { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.fmain b { font-family: "Anton", sans-serif; font-weight: 400; font-size: 22px; letter-spacing: .03em; text-transform: uppercase; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; }
+.fsub { font-size: 13px; color: var(--muted); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.av { width: 46px; height: 46px; border-radius: 50%; flex: none; display: grid; place-items: center; font-family: "Anton", sans-serif; font-size: 24px; }
+.av0 { background: var(--red); color: var(--on-red); } .av1 { background: var(--gold); color: var(--on-gold); } .av2 { background: var(--ink); color: var(--bg); }
+.av.big { width: 64px; height: 64px; font-size: 34px; }
+.fdots { display: flex; gap: 3px; flex: none; } .fdots i { width: 8px; height: 22px; border-radius: 2px; background: var(--line); } .fdots i.on { background: var(--red); }
+.fhead { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; } .fhead h2 { font-size: 34px; }
+.fstats { margin-top: 6px; }
+.fweekrow { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
+.fd { border: 1px solid var(--line); border-radius: 5px; padding: 6px 0; text-align: center; background: var(--panel2); }
+.fd b { display: block; font-size: 11px; letter-spacing: .1em; color: var(--muted); }
+.fd span { display: block; min-height: 34px; font-family: "Anton", sans-serif; font-size: 13px; line-height: 1.15; padding-top: 4px; color: var(--muted); }
+.fd.on { background: var(--ink); border-color: var(--ink); } .fd.on b, .fd.on span { color: var(--bg); }
+.vs { display: grid; gap: 8px; margin-top: 6px; }
+.vs-row { display: grid; grid-template-columns: 74px 1fr 64px; gap: 10px; align-items: center; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.vs-bars { display: grid; gap: 3px; } .vs-bars i { display: block; height: 7px; border-radius: 2px; } .vs-bars .me { background: var(--red); } .vs-bars .fr { background: var(--ink); }
+.vs-row b { text-align: right; color: var(--ink); font-family: "Anton", sans-serif; font-weight: 400; font-size: 17px; letter-spacing: .03em; }
+.sheet-friend { max-width: 620px; }
+
+/* install */
+.install-fab { position: fixed; right: 14px; bottom: calc(86px + env(safe-area-inset-bottom, 0px)); z-index: 18; display: flex; align-items: center; gap: 8px; height: 48px; min-width: 48px; padding: 0 12px; border: 1px solid var(--muted); border-radius: 24px; background: var(--panel); color: var(--ink); box-shadow: var(--shadow); font: 800 12px "Archivo", sans-serif; letter-spacing: .12em; text-transform: uppercase; justify-content: center; }
+.install-fab svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.install-fab span { display: none; }
+.install-fab:hover { border-color: var(--ink); }
+.install-fab[hidden], body.sheet-open .install-fab { display: none; }
+@media (min-width: 700px) { .install-fab span { display: inline; } .install-fab { padding: 0 18px 0 14px; } }
+@media (min-width: 1000px) { .install-fab { bottom: 24px; right: 24px; } }
+.install-card { display: flex; align-items: center; gap: 14px; margin-top: 14px; padding: 14px 16px; flex-wrap: wrap; border-color: var(--gold); }
+.install-card .ic { width: 44px; height: 44px; border-radius: 10px; background: var(--gold); color: var(--on-gold); display: grid; place-items: center; flex: none; }
+.install-card .ic svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.install-card div { flex: 1 1 200px; min-width: 0; } .install-card b { font-family: "Anton", sans-serif; font-weight: 400; font-size: 22px; letter-spacing: .03em; text-transform: uppercase; }
+.install-card p { font-size: 14px; color: var(--muted); }
+.istep { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 10px; }
+.istep li { display: flex; gap: 14px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); line-height: 1.4; }
+.istep .n { width: 30px; height: 30px; border-radius: 50%; background: var(--gold); color: var(--on-gold); display: grid; place-items: center; font-family: "Anton", sans-serif; font-size: 17px; flex: none; }
