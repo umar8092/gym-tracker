@@ -79,7 +79,7 @@
       return live().filter(function (l) { return l.d === date && l.e === exId; }).sort(function (a, b) { return a.ts - b.ts; }).map(function (l) { l.t = stype()[l.id] || ''; return l; });
     },
     workSets: function (date, exId) { return Store.setsFor(date, exId).filter(function (l) { return l.t !== 'w'; }); },
-    logsOn: function (date) { return live().filter(function (l) { return l.d === date; }); },
+    logsOn: function (date) { return Store.allLogs().filter(function (l) { return l.d === date; }); },
     allLogs: function () { return live().filter(function (l) { return stype()[l.id] !== 'w'; }); },   // warm-ups never count towards PRs, volume or streaks
     allLogsRaw: function () { return live(); },
     setType: function (id, t) {

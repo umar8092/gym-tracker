@@ -8,4 +8,5 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: npm install
-      - run: sh tests/run-all.sh
+      - run: npx playwright-core install --with-deps webkit firefox
+      - run: XB=1 sh tests/run-all.sh

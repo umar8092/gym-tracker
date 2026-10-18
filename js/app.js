@@ -181,7 +181,7 @@
     doShare('save'); if (navigator.clipboard) { navigator.clipboard.writeText(cur.text).catch(function () {}); }
   }
 
-  var APP_VERSION = 'gym-v32';   // keep equal to VERSION in sw.js (tests/version.test.js checks it)
+  var APP_VERSION = 'gym-v33';   // keep equal to VERSION in sw.js (tests/version.test.js checks it)
   function deviceInfo() { var ua = navigator.userAgent || '', m = /(iPhone|iPad|Android[^;)]*|Windows|Macintosh|Linux)/.exec(ua), b = /(Edg|CriOS|FxiOS|Firefox|Chrome|Safari)\/?([\d.]*)/.exec(ua); return (m ? m[1] : 'device') + ', ' + (b ? b[1] + ' ' + b[2].split('.')[0] : 'browser') + ', screen ' + screen.width + 'x' + screen.height + ', ' + (Install.standalone() ? 'installed app' : 'in browser'); }
 
   /* =========================================================  EXPORT, REMINDERS, DELETE  */
@@ -871,7 +871,7 @@
     }).join('') + '</ol></nav><div class="wk-main">';
     Sess.start();
     h += '<p class="wk-pos">Exercise ' + (idx + 1) + ' of ' + exs.length + ' · Session <span class="num" id="sess-t">0:00</span></p>';
-    h += '<div class="ex-tools" role="group" aria-label="Change this exercise"><button type="button" class="link" data-act="mv-up" data-id="' + ex.id + '"' + (idx === 0 ? ' disabled' : '') + '>Move earlier</button><button type="button" class="link" data-act="mv-down" data-id="' + ex.id + '"' + (last ? ' disabled' : '') + '>Move later</button><button type="button" class="link" data-act="swap-open" data-id="' + ex.id + '">Swap exercise</button></div>';
+    h += '<div class="ex-tools" role="group" aria-label="Change this exercise"><button type="button" class="link" data-act="mv-up" data-id="' + ex.id + '"' + (idx === 0 ? ' disabled' : '') + '>Move up</button><button type="button" class="link" data-act="mv-down" data-id="' + ex.id + '"' + (last ? ' disabled' : '') + '>Move down</button><button type="button" class="link" data-act="swap-open" data-id="' + ex.id + '">Swap</button></div>';
     h += '<section class="ex" data-ex="' + ex.id + '"><div class="ex-head"><span class="ex-n">' + (i + 1) + '</span><div>' + (i === 0 ? '<span class="badge">Main event</span>' : '') + '<h2>' + esc(ex.name) + '</h2>' +
       '<p class="ex-meta"><b>' + ex.sets + ' rounds of ' + esc(ex.reps) + (ex.timed ? ' seconds' : ' reps') + '</b>, ' + ex.equip.toLowerCase() + '. ' + esc(ex.target) + '</p>' +
       (Store.isSuper(ex.id) && i ? '<p class="ss-tag">Superset: do it right after the exercise above, then rest.</p>' : '') + '<p class="ex-note" data-note-for="' + ex.id + '"' + (Store.note(ex.id) ? '' : ' hidden') + '>Note: ' + esc(Store.note(ex.id)) + '</p></div></div>' +
@@ -1322,7 +1322,7 @@
         if (isNaN(kg) || kg < 0 || (kg === 0 && ex.equip !== 'Bodyweight')) { toast(ex.equip === 'Barbell' ? 'Pick a weight first. An empty bar is ' + BAR_NAME() + '.' : 'Pick a weight first. Start light.'); break; }
         var st = dr.t || '', newId = Store.addSet(Store.today(), ex.muscle, exId, reps, kg); if (st) { Store.setType(newId, st); }
         var allSets = Store.setsFor(Store.today(), exId), doneSets = allSets.filter(function (x) { return x.t !== 'w'; }), mine = allSets[allSets.length - 1], pr = st === 'w' ? null : Stats.prFor(mine, exLogs(exId));
-        if (st === 'w') { draft[exId] = { reps: reps, kg: kg }; refreshLogger(exId); toast('Warm-up logged. It does not count towards your rounds or records.'); break; }
+        if (st === 'w') { draft[exId] = { reps: reps, kg: kg }; refreshLogger(exId); toast('Warm-up logged. Not counted in records.'); break; }
         toast('Round ' + doneSets.length + ' logged' + (pr ? '. ' + Stats.PR_TEXT[pr] + '!' : ''), pr ? { label: 'Share PR', fn: function () { openShare(prShare(exId, mine.id)); } } : null);
         if (wasLast && wasLast.sets[doneSets.length]) { draft[exId] = { reps: wasLast.sets[doneSets.length].reps, kg: wasLast.sets[doneSets.length].kg }; } // preload the next set from last time
         var ord = visibleEx(ex.muscle), oi = ord.map(function (e) { return e.id; }).indexOf(exId);

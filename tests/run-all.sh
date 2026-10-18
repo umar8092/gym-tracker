@@ -9,4 +9,6 @@ for t in stats.test v3 shots flow offline seeded features batch3 login sync frie
   printf '== %s: %s\n' "$t" "$([ $rc = 0 ] && echo ok || echo FAILED)"
   [ $rc = 0 ] || { tail -15 /tmp/gym-test.out; FAIL=1; }
 done
+# Safari/Firefox engines too, when installed (CI sets XB=1)
+if [ -n "$XB" ]; then node tests/browsers.js > /tmp/gym-test.out 2>&1; rc=$?; printf '== browsers: %s\n' "$([ $rc = 0 ] && echo ok || echo FAILED)"; [ $rc = 0 ] || { tail -15 /tmp/gym-test.out; FAIL=1; }; fi
 exit $FAIL
