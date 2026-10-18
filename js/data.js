@@ -9,9 +9,10 @@
     back:      { name: 'Back',      day: 2, blurb: 'Pulling movements for the lats and mid-back, with biceps and rear shoulder helping.' },
     legs:      { name: 'Legs',      day: 3, blurb: 'Thighs, glutes, hamstrings and calves. The biggest muscles, so the most effort.' },
     shoulders: { name: 'Shoulders', day: 4, blurb: 'Front, side and rear shoulder. Control matters more than weight here.' },
+    core:      { name: 'Core', short: 'Abs', optional: true, day: 6, blurb: 'Abs and the muscles around your middle. Add it to any training day, or train it on its own.' },
     arms:      { name: 'Arms',      day: 5, blurb: 'Biceps on the front of the arm, triceps on the back, plus the forearm.' }
   };
-  var ORDER = ['chest', 'back', 'legs', 'shoulders', 'arms'];
+  var ORDER = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core'];
 
   var EX = [
     /* ---------------- CHEST ---------------- */
@@ -232,7 +233,38 @@
       sets: 3, reps: '12',
       how: 'Stand facing the cable with your elbows pinned to your sides. Push the handle down until your arms are straight, then let it rise slowly to chest height.',
       avoid: 'Leaning over the handle or letting your elbows lift.',
-      mus: { view: 'back', p: ['triceps'], s: [], main: 'Back of the upper arm (triceps)', help: 'Mostly the arm alone' } }
+      mus: { view: 'back', p: ['triceps'], s: [], main: 'Back of the upper arm (triceps)', help: 'Mostly the arm alone' } },
+    /* ---------------- CORE ---------------- */
+    { id: 'crunch', muscle: 'core', name: 'Crunch', equip: 'Bodyweight', noimg: true,
+      target: 'Trains the front of the abs with no equipment.',
+      sets: 3, reps: '15-20',
+      how: 'Lie on your back with your knees bent and feet flat. Rest your hands by your temples without pulling on your head. Curl your ribs towards your hips until your shoulder blades lift, pause, then lower with control.',
+      avoid: 'Yanking your neck forward or swinging up with momentum. The movement is small.',
+      mus: { view: 'front', p: ['abs'], s: [], main: 'Abs (rectus abdominis)', help: 'Mostly the abs alone' } },
+    { id: 'plank', muscle: 'core', name: 'Plank', equip: 'Bodyweight', noimg: true, timed: true,
+      target: 'Builds the deep core that holds your spine steady.',
+      sets: 3, reps: '30-45',
+      how: 'Rest on your forearms and toes with your elbows under your shoulders. Squeeze your glutes and abs so your body makes one straight line from head to heels. Breathe normally and hold for the time shown.',
+      avoid: 'Letting your hips sag or pike up. Stop the set when your form goes, not when the clock says so.',
+      mus: { view: 'front', p: ['abs'], s: ['delt_ant'], main: 'Abs and deep core', help: 'Front shoulder, glutes' } },
+    { id: 'hanging-knee-raise', muscle: 'core', name: 'Hanging knee raise', equip: 'Bodyweight', noimg: true, confirm: true,
+      target: 'Works the lower abs and hip flexors. Needs a pull-up bar.',
+      sets: 3, reps: '10-12',
+      how: 'Hang from the bar with straight arms and your shoulders pulled slightly down. Raise your knees towards your chest by curling your pelvis up, then lower slowly without swinging.',
+      avoid: 'Swinging your legs for momentum. Use a captain\'s chair or lying leg raises if hanging is too hard.',
+      mus: { view: 'front', p: ['abs'], s: ['quad'], main: 'Lower abs', help: 'Hip flexors, forearm grip' } },
+    { id: 'russian-twist', muscle: 'core', name: 'Russian twist', equip: 'Dumbbells', noimg: true,
+      target: 'Targets the obliques at the sides of your waist.',
+      sets: 3, reps: '16-20',
+      how: 'Sit with your knees bent and lean back slightly, back straight. Hold one dumbbell with both hands. Turn your ribs to bring it beside one hip, then to the other. Count each side as one rep.',
+      avoid: 'Rounding your back or just swinging your arms. Turn the ribs, not only the hands.',
+      mus: { view: 'front', p: ['abs'], s: [], main: 'Obliques and abs', help: 'Hip flexors' } },
+    { id: 'cable-crunch', muscle: 'core', name: 'Cable crunch', equip: 'Machine', noimg: true, confirm: true,
+      target: 'Lets you load the abs with weight so they keep growing.',
+      sets: 3, reps: '12-15',
+      how: 'Kneel facing a high cable with a rope behind your head. Keeping your hips still, curl your ribs down towards your hips, pause, then return slowly.',
+      avoid: 'Sitting back onto your heels or pulling with your arms. The abs do the work.',
+      mus: { view: 'front', p: ['abs'], s: [], main: 'Abs (rectus abdominis)', help: 'Mostly the abs alone' } }
   ];
 
   var byId = {};

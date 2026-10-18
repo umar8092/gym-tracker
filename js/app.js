@@ -23,7 +23,7 @@
   function longDate(s) { var d = Store.parse(s); return DAYS[d.getDay()] + ' ' + d.getDate() + ' ' + MONTHS[d.getMonth()]; }
   // muscles still to do on a planned multi-muscle day; if the person trained something else instead, the day counts as done
   function leftToday(info) { return info.trained.some(function (m) { return info.plannedAll.indexOf(m) < 0; }) ? [] : info.plannedAll.filter(function (m) { return info.trained.indexOf(m) < 0; }); }
-  function mShort(id) { return mName(id).slice(0, 3); }
+  function mShort(id) { return (Data.MUSCLES[id] && Data.MUSCLES[id].short) || mName(id).slice(0, 3); }
   function mList(a) { return a.map(mName).join(' + '); }
   function mName(id) { return Data.MUSCLES[id] ? Data.MUSCLES[id].name : id; }
   // act = { label, fn }: a button in the toast (Undo). Such a toast stays longer and can be tapped.
@@ -34,7 +34,20 @@
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { toastEl.classList.remove('on'); }, act ? 6000 : 1800);
   }
   function weekStart(s) { var d = Store.parse(s), off = (d.getDay() + 6) % 7; return Store.addDays(s, -off); }
-  function visibleEx(muscle) { return Data.exercisesFor(muscle).filter(function (e) { return !Store.isHidden(e.id); }); }
+  function visibleEx(muscle) {
+    var o = Store.order(muscle), list = Data.exercisesFor(muscle).filter(function (e) { return !Store.isHidden(e.id); });
+    return list.map(function (e, i) { return [o.indexOf(e.id) < 0 ? 1e3 + i : o.indexOf(e.id), e]; }).sort(function (a, b) { return a[0] - b[0]; }).map(function (x) { return x[1]; });
+  }
+  function moveEx(muscle, id, by) {
+    var ids = visibleEx(muscle).map(function (e) { return e.id; }), i = ids.indexOf(id), j = i + by;
+    if (i < 0 || j < 0 || j >= ids.length) { return -1; }
+    ids.splice(j, 0, ids.splice(i, 1)[0]); Store.setOrder(muscle, ids); return j;
+  }
+  function swapSheet(muscle, id) {
+    var spare = Data.exercisesFor(muscle).filter(function (e) { return e.id !== id; });
+    openSheet('<h2>Swap this exercise</h2><p class="sub">Replace <b>' + esc(Data.byId[id].name) + '</b> with another ' + esc(mName(muscle).toLowerCase()) + ' exercise. The new one takes its place in the order; one already in your list just trades places. Your logged history is kept.</p>' +
+      (spare.length ? '<ul class="swap-list">' + spare.map(function (e) { return '<li><button type="button" class="btn block" data-act="swap-go" data-id="' + id + '" data-to="' + e.id + '"><b>' + esc(e.name) + '</b><span class="sub"> ' + esc(e.equip) + (Store.isHidden(e.id) ? '' : ', trade places') + '</span></button></li>'; }).join('') + '</ul>' : '') + '<p class="sub">Want something else? <a class="link" href="#/plan/' + muscle + '" data-act="sheet-close">Search the library or add your own</a>.</p>');
+  }
 
   /* =========================================================  SESSION TIMER + SCREEN AWAKE  */
   // The session clock is a start time kept on the device, so it keeps running if the app is closed or the phone locks.
@@ -168,7 +181,7 @@
     doShare('save'); if (navigator.clipboard) { navigator.clipboard.writeText(cur.text).catch(function () {}); }
   }
 
-  var APP_VERSION = 'gym-v31';   // keep equal to VERSION in sw.js (tests/version.test.js checks it)
+  var APP_VERSION = 'gym-v32';   // keep equal to VERSION in sw.js (tests/version.test.js checks it)
   function deviceInfo() { var ua = navigator.userAgent || '', m = /(iPhone|iPad|Android[^;)]*|Windows|Macintosh|Linux)/.exec(ua), b = /(Edg|CriOS|FxiOS|Firefox|Chrome|Safari)\/?([\d.]*)/.exec(ua); return (m ? m[1] : 'device') + ', ' + (b ? b[1] + ' ' + b[2].split('.')[0] : 'browser') + ', screen ' + screen.width + 'x' + screen.height + ', ' + (Install.standalone() ? 'installed app' : 'in browser'); }
 
   /* =========================================================  EXPORT, REMINDERS, DELETE  */
@@ -393,7 +406,7 @@
   function bestSet(sets) { var b = null; sets.forEach(function (s) { if (!b || (s.kg > 0 || b.kg > 0 ? Stats.epley(s.kg, s.reps) > Stats.epley(b.kg, b.reps) : s.reps > b.reps)) { b = s; } }); return b; }
   function setText(s) { return s ? (s.kg > 0 ? s.reps + ' × ' + wStr(s.kg) : s.reps + ' reps') : '—'; }
   function thumbHTML(ex, cls) {
-    return '<span class="thumb ' + (cls || '') + '">' + (ex.custom || saveData() ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h18M6 7v10M18 7v10M9 9v6M15 9v6"/></svg>' : '<img src="img/ex/' + ex.id + '.webp" alt="" loading="lazy" decoding="async">') + '</span>';
+    return '<span class="thumb ' + (cls || '') + '">' + (ex.custom || ex.noimg || saveData() ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h18M6 7v10M18 7v10M9 9v6M15 9v6"/></svg>' : '<img src="img/ex/' + ex.id + '.webp" alt="" loading="lazy" decoding="async">') + '</span>';
   }
   // result of the last fight against the one before it, as a chip: Won last / Draw / Lost last / Split / Rematch / Debut
   function lastResult(ex, t) {
@@ -662,7 +675,7 @@
       return '<div class="sched-day' + (sel.length ? ' on' : '') + '"><div class="sd-h"><b>' + DAYS[d] + '</b><small>' + (sel.length ? 'About ' + m + ' min' : 'Rest day') + '</small></div><div class="sd-chips" role="group" aria-label="' + DAYS[d] + ' muscles">' +
         Data.ORDER.map(function (g) { return '<button type="button" class="chip" data-act="sched-chip" data-d="' + d + '" data-m="' + g + '" aria-pressed="' + (sel.indexOf(g) >= 0) + '">' + Data.MUSCLES[g].name + '</button>'; }).join('') + '</div></div>';
     }).join('');
-    var miss = Data.ORDER.filter(function (g) { return !seen[g]; }).map(mName);
+    var miss = Data.ORDER.filter(function (g) { return !seen[g] && !Data.MUSCLES[g].optional; }).map(mName);
     return '<div id="sched"><p class="lab" style="margin-top:6px"><span>Start from a template</span></p><div class="presets">' + presets + '</div>' +
       '<p class="lab" style="margin-top:18px"><span>Or set each day</span><span>Up to 3 muscles a day</span></p><div class="sched">' + rows + '</div>' +
       '<p class="sched-sum" role="status"><b>' + days + ' training ' + (days === 1 ? 'day' : 'days') + ', ' + (7 - days) + ' rest</b>' + (days ? ' · about ' + mins + ' min a week' : '') + '</p>' +
@@ -858,6 +871,7 @@
     }).join('') + '</ol></nav><div class="wk-main">';
     Sess.start();
     h += '<p class="wk-pos">Exercise ' + (idx + 1) + ' of ' + exs.length + ' · Session <span class="num" id="sess-t">0:00</span></p>';
+    h += '<div class="ex-tools" role="group" aria-label="Change this exercise"><button type="button" class="link" data-act="mv-up" data-id="' + ex.id + '"' + (idx === 0 ? ' disabled' : '') + '>Move earlier</button><button type="button" class="link" data-act="mv-down" data-id="' + ex.id + '"' + (last ? ' disabled' : '') + '>Move later</button><button type="button" class="link" data-act="swap-open" data-id="' + ex.id + '">Swap exercise</button></div>';
     h += '<section class="ex" data-ex="' + ex.id + '"><div class="ex-head"><span class="ex-n">' + (i + 1) + '</span><div>' + (i === 0 ? '<span class="badge">Main event</span>' : '') + '<h2>' + esc(ex.name) + '</h2>' +
       '<p class="ex-meta"><b>' + ex.sets + ' rounds of ' + esc(ex.reps) + (ex.timed ? ' seconds' : ' reps') + '</b>, ' + ex.equip.toLowerCase() + '. ' + esc(ex.target) + '</p>' +
       (Store.isSuper(ex.id) && i ? '<p class="ss-tag">Superset: do it right after the exercise above, then rest.</p>' : '') + '<p class="ex-note" data-note-for="' + ex.id + '"' + (Store.note(ex.id) ? '' : ' hidden') + '>Note: ' + esc(Store.note(ex.id)) + '</p></div></div>' +
@@ -1339,6 +1353,16 @@
       case 'prog-go': progSel = el.dataset.id; location.hash = '#/home/progress'; render(); break;
       case 'awake': var aw = el.getAttribute('aria-checked') !== 'true'; try { localStorage.setItem('gymtracker.awake', aw ? 'on' : 'off'); } catch (err) {} el.setAttribute('aria-checked', String(aw)); break;
       case 'unit': try { localStorage.setItem('gymtracker.unit', el.dataset.v); } catch (err) {} Stats.setUnit(el.dataset.v); draft = {}; render(true); break;
+      case 'mv-up': case 'mv-down':
+        var mvEx = Data.byId[el.dataset.id], nj = moveEx(mvEx.muscle, mvEx.id, act === 'mv-up' ? -1 : 1);
+        if (nj >= 0) { location.hash = '#/m/' + mvEx.muscle + '/' + (nj + 1); toast('Moved to position ' + (nj + 1)); } else { toast(act === 'mv-up' ? 'Already first' : 'Already last'); } break;
+      case 'swap-open': swapSheet(Data.byId[el.dataset.id].muscle, el.dataset.id); break;
+      case 'swap-go':
+        var sm = Data.byId[el.dataset.id].muscle, sids = visibleEx(sm).map(function (e) { return e.id; }), sp = sids.indexOf(el.dataset.id);
+        var tp = sids.indexOf(el.dataset.to);
+        if (tp >= 0) { sids[tp] = el.dataset.id; } else { Store.setHidden(el.dataset.id, true); Store.setHidden(el.dataset.to, false); }
+        sids[sp] = el.dataset.to; Store.setOrder(sm, sids);
+        closeSheet(); location.hash = '#/m/' + sm + '/' + (sp + 1); render(true); toast('Swapped to ' + Data.byId[el.dataset.to].name); break;
       case 'wk-skip':
         var sks = skipped(); if (sks.indexOf(el.dataset.id) < 0) { sks.push(el.dataset.id); setSkipped(sks); }
         toast('Skipped. You can come back to it from the list.'); location.hash = el.dataset.to ? '#/m/' + el.dataset.to : '#/summary/' + (Data.byId[el.dataset.id] || {}).muscle; break;

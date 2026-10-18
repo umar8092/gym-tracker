@@ -150,7 +150,7 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
 
   // 13. edit exercises from the muscle picker
   p = await open(390, 844, FRI, '#/pick', { logs: [], weights, profile });
-  ok((await p.locator('.pick-edit').count()) === 5 && (await p.locator('.pick-edit').first().textContent()).includes('Edit 5 exercises'), 'each muscle on the picker has an Edit exercises link');
+  ok((await p.locator('.pick-edit').count()) === 6 && (await p.locator('.pick-edit').first().textContent()).includes('Edit 5 exercises'), 'each muscle on the picker has an Edit exercises link');
   await p.locator('.pick-edit').nth(2).click(); await p.waitForTimeout(300);
   ok(await p.locator('#pd-legs').evaluate(e => e.open) && !(await p.locator('#pd-chest').evaluate(e => e.open)), 'the link opens Plan with that muscle expanded');
   await p.context().close();

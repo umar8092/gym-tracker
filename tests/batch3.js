@@ -15,7 +15,7 @@ const URL = process.env.URL || 'http://localhost:8765/index.html';
   await page.goto(URL + '#/progress'); await page.waitForTimeout(300);
   const tr = await page.locator('.trend').first().textContent();
   ok(/0\.5 kg a week down/.test(tr) && /(reach 75 kg|Goal) around/.test(tr), 'weight trend shows pace and goal date: ' + tr);
-  ok((await page.locator('.bal li').count()) === 5 && (await page.locator('.bal li').first().locator('b').textContent()) === '2', 'muscle balance lists 5 muscles, chest has 2 sets');
+  ok((await page.locator('.bal li').count()) === 6 && (await page.locator('.bal li').first().locator('b').textContent()) === '2', 'muscle balance lists 6 muscles, chest has 2 sets');
   // custom exercise
   await page.goto(URL + '#/plan'); await page.evaluate(() => { document.querySelectorAll('details.fold').forEach(d => { d.open = true; }); });
   await page.fill('#cx-n', 'Cable crossover'); await page.selectOption('#cx-m', 'chest'); await page.selectOption('#cx-e', 'Machine');

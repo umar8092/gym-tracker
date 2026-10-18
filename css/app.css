@@ -752,3 +752,8 @@ body.sheet-open { overflow: hidden; }
 .stypes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 10px 0 2px; }
 .stypes .chip { font-size: 14px; padding: 4px 2px; }
 .stag { font-style: normal; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--gold, #d4a53c); margin-left: 6px; }
+
+/* move / swap */
+.ex-tools { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0 0 8px; }
+.ex-tools .link { min-height: 44px; display: inline-flex; align-items: center; } .ex-tools .link[disabled] { opacity: .35; pointer-events: none; }
+.swap-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; } .swap-list .btn { text-align: left; justify-content: flex-start; }
