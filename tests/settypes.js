@@ -1,5 +1,5 @@
 // Set types: warm-up stays out of rounds and records; failure and drop are tagged; survives reload and cloud.
-const { chromium } = require('/Users/muhammadumar/.local/lib/node_modules/@playwright/cli/node_modules/playwright-core');
+const { chromium } = require('./pw');
 const { fakeCloud } = require('./helpers');
 const URL = process.env.URL || 'http://localhost:8765/index.html';
 (async () => {

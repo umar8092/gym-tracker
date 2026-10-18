@@ -1,5 +1,5 @@
 // Multi-device, multi-user sync test against an in-memory fake Firestore (no real cloud, no real data).
-const { chromium } = require('/Users/muhammadumar/.local/lib/node_modules/@playwright/cli/node_modules/playwright-core');
+const { chromium } = require('./pw');
 const { fakeCloud } = require('./helpers');
 const URL = process.env.URL || 'http://localhost:8765/index.html';
 (async () => {

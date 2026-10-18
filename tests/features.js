@@ -1,5 +1,5 @@
 // Batch 1+2 features: history, target, set comparison, PR, repeat, plates, rest timer, notes, summary, progress.
-const { chromium } = require('/Users/muhammadumar/.local/lib/node_modules/@playwright/cli/node_modules/playwright-core');
+const { chromium } = require('./pw');
 const { signIn } = require('./helpers');
 const URL = process.env.URL || 'http://localhost:8765/index.html', OUT = '/tmp/gt-shots';
 (async () => {

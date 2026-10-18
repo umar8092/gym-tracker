@@ -1,5 +1,5 @@
 // Renders one transparent-able portrait per built-in exercise from the real 3D figure (End pose) into /tmp/ang/raw. Post-process with tests/gen-thumbs.py.
-const { chromium } = require('/Users/muhammadumar/.local/lib/node_modules/@playwright/cli/node_modules/playwright-core');
+const { chromium } = require('./pw');
 const { signIn } = require('./helpers');
 (async () => {
   const b = await chromium.launch({ channel: 'chrome', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });

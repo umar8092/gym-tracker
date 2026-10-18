@@ -1,5 +1,5 @@
 // End-to-end flow: log sets, remove one, open shoulder form guides (3D), switch days, calendar + progress with data.
-const { chromium } = require('/Users/muhammadumar/.local/lib/node_modules/@playwright/cli/node_modules/playwright-core');
+const { chromium } = require('./pw');
 const OUT = '/tmp/gt-shots', URL = 'http://localhost:8765/index.html';
 (async () => {
   const b = await chromium.launch({ channel: 'chrome', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });

@@ -1,5 +1,5 @@
 // Batch 3: weight trend + goal date, muscle balance, made-up missed days, custom exercises.
-const { chromium } = require('/Users/muhammadumar/.local/lib/node_modules/@playwright/cli/node_modules/playwright-core');
+const { chromium } = require('./pw');
 const { signIn } = require('./helpers');
 const URL = process.env.URL || 'http://localhost:8765/index.html';
 (async () => {

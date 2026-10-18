@@ -1,5 +1,5 @@
 // "Main Event" UI: fight-card home screen in every state, dashboard tape, theme switch, images, nav on phone and laptop.
-const { chromium } = require('/Users/muhammadumar/.local/lib/node_modules/@playwright/cli/node_modules/playwright-core');
+const { chromium } = require('./pw');
 const { signIn } = require('./helpers');
 const URL = process.env.URL || 'http://localhost:8765/index.html';
 (async () => {

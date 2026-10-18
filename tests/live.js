@@ -1,6 +1,6 @@
 // Live smoke test against the real Firebase project with throwaway usernames. Cleans up everything it writes.
 // Usage: node tests/live.js   (needs `python3 -m http.server 8765` for the UI part; set URL to test the deployed site)
-const { chromium } = require('/Users/muhammadumar/.local/lib/node_modules/@playwright/cli/node_modules/playwright-core');
+const { chromium } = require('./pw');
 const KEY = 'AIzaSyAl32tER_FWZglF60u6tpFvhH9sEwGj1BU', P = 'gym-tracker-5937f';
 const DB = `projects/${P}/databases/(default)/documents`, BASE = `https://firestore.googleapis.com/v1/${DB}`;
 const URL = process.env.URL || 'http://localhost:8765/index.html';

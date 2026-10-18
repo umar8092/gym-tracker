@@ -1,5 +1,5 @@
 // Your data: CSV export, calendar reminders (.ics), delete from the cloud, privacy, problem report text.
-const { chromium } = require('/Users/muhammadumar/.local/lib/node_modules/@playwright/cli/node_modules/playwright-core');
+const { chromium } = require('./pw');
 const { fakeCloud } = require('./helpers');
 const fs = require('fs');
 const URL = process.env.URL || 'http://localhost:8765/index.html';

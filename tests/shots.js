@@ -1,6 +1,6 @@
 // Usage: node tests/shots.js  (needs `python3 -m http.server 8765` in the project root)
 // Renders every screen at phone + desktop, light + dark, for a fixed weekday, and reports console errors / horizontal overflow.
-const { chromium } = require(process.env.PW_CORE || '/Users/muhammadumar/.local/lib/node_modules/@playwright/cli/node_modules/playwright-core');
+const { chromium } = require('./pw');
 const OUT = process.env.OUT || '/tmp/gt-shots';
 (async () => {
   const browser = await chromium.launch({ channel: 'chrome', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });

@@ -1,0 +1,1 @@
+{ "name": "gym-tracker", "private": true, "scripts": { "test": "sh tests/run-all.sh" }, "devDependencies": { "playwright-core": "1.49.1" } }

@@ -1,5 +1,5 @@
 // Core muscle: optional, not in the default week, trainable, shows in pickers, balance and the week editor.
-const { chromium } = require('/Users/muhammadumar/.local/lib/node_modules/@playwright/cli/node_modules/playwright-core');
+const { chromium } = require('./pw');
 const { signIn } = require('./helpers');
 const URL = process.env.URL || 'http://localhost:8765/index.html';
 (async () => {

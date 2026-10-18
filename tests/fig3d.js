@@ -1,5 +1,5 @@
 // Opens the form guide of every 3D exercise on a page and checks the figure renders (no errors, canvas not blank). Screenshots to /tmp/gt-shots.
-const { chromium } = require('/Users/muhammadumar/.local/lib/node_modules/@playwright/cli/node_modules/playwright-core');
+const { chromium } = require('./pw');
 const { signIn } = require('./helpers');
 const URL = process.env.URL || 'http://localhost:8765/index.html', OUT = '/tmp/gt-shots', muscle = process.argv[2] || 'shoulders', views = (process.argv[3] || 'default,Side,Back,Top').split(',');
 (async () => {

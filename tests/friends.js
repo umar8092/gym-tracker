@@ -1,5 +1,5 @@
 // Friends: add by username, card shows their week, profile dialog with stats / comparison / best lifts, remove.
-const { chromium } = require('/Users/muhammadumar/.local/lib/node_modules/@playwright/cli/node_modules/playwright-core');
+const { chromium } = require('./pw');
 const { fakeCloud } = require('./helpers');
 const URL = process.env.URL || 'http://localhost:8765/index.html';
 (async () => {
