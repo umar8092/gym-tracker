@@ -758,3 +758,14 @@ body.sheet-open { overflow: hidden; }
 .ex-tools .link { min-height: 44px; display: inline-flex; align-items: center; } .ex-tools .link[disabled] { opacity: .35; pointer-events: none; }
 .swap-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; } .swap-list .btn { text-align: left; justify-content: flex-start; }
 .ex-tools { gap: 0 22px; } .ex-tools .link { font-size: 13px; letter-spacing: .1em; }
+
+/* laptop body stage (muscle picker) */
+.stage { display: none; }
+@media (min-width: 1000px) {
+  main[data-r="pick"] { max-width: 1120px; }
+  .pick-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 32px; align-items: start; }
+  .stage { display: block; position: sticky; top: 84px; border: 1px solid var(--line); border-radius: 8px; background: radial-gradient(120% 90% at 50% 20%, var(--panel2), var(--bg)); padding: 10px 10px 14px; text-align: center; }
+  .stage[hidden] { display: none; }
+  .stage canvas { width: 100%; aspect-ratio: 4 / 5; display: block; }
+  .stage-cap { margin: 4px 0 0; font: 400 28px "Anton", sans-serif; letter-spacing: .04em; text-transform: uppercase; }
+}

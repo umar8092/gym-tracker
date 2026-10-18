@@ -181,7 +181,7 @@
     doShare('save'); if (navigator.clipboard) { navigator.clipboard.writeText(cur.text).catch(function () {}); }
   }
 
-  var APP_VERSION = 'gym-v33';   // keep equal to VERSION in sw.js (tests/version.test.js checks it)
+  var APP_VERSION = 'gym-v34';   // keep equal to VERSION in sw.js (tests/version.test.js checks it)
   function deviceInfo() { var ua = navigator.userAgent || '', m = /(iPhone|iPad|Android[^;)]*|Windows|Macintosh|Linux)/.exec(ua), b = /(Edg|CriOS|FxiOS|Firefox|Chrome|Safari)\/?([\d.]*)/.exec(ua); return (m ? m[1] : 'device') + ', ' + (b ? b[1] + ' ' + b[2].split('.')[0] : 'browser') + ', screen ' + screen.width + 'x' + screen.height + ', ' + (Install.standalone() ? 'installed app' : 'in browser'); }
 
   /* =========================================================  EXPORT, REMINDERS, DELETE  */
@@ -711,14 +711,30 @@
   /* =========================================================  PICK  */
   function viewPick() {
     var t = Store.today();
-    var h = '<a class="crumb" href="#/today">Back to today</a><h1>Which muscle today?</h1><ul class="pick-list">';
+    var h = '<a class="crumb" href="#/today">Back to today</a><h1>Which muscle today?</h1><div class="pick-wrap"><div><ul class="pick-list">';
     Data.ORDER.forEach(function (id) {
       var m = Data.MUSCLES[id];
       h += '<li><a href="#/m/' + id + '"><span><span class="nm">' + m.name + '</span><br><span class="sub">' + daysText(id) + ', ' + visibleEx(id).length + ' exercises</span></span>' +
         (Data.planAll(Store.parse(t).getDay()).indexOf(id) >= 0 ? '<span class="tag">Planned today</span>' : '') + '</a><a class="pick-edit" href="#/plan/' + id + '">Edit ' + Data.exercisesFor(id).length + ' exercises</a></li>';
     });
-    return h + '</ul>';
+    return h + '</ul></div><aside class="stage" aria-hidden="true"><canvas id="stage-cv"></canvas><p class="stage-cap" id="stage-cap">Point at a muscle</p></aside></div>';
   }
+  // laptop only: a live body that turns and zooms to the muscle you point at
+  var stageObj = null, stageOn = '';
+  function stageDefault() { var p = Data.planAll(Store.parse(Store.today()).getDay()); return p[0] || 'all'; }
+  function stageFocus(g) { if (!stageObj) { return; } stageObj.focus(g); var c = document.getElementById('stage-cap'); if (c) { c.textContent = Data.MUSCLES[g] ? Data.MUSCLES[g].name : 'Point at a muscle'; } }
+  function setupStage(r) {
+    stageObj = null; var cv = document.getElementById('stage-cv');
+    if (r.name !== 'pick' || !cv || !window.matchMedia('(min-width: 1000px)').matches || saveData()) { return; }
+    var cap = document.getElementById('stage-cap'); cap.textContent = 'Loading the body…';
+    load3D().then(function () { return Engine3D.stage(cv); }).then(function (st) {
+      if (!st || document.getElementById('stage-cv') !== cv) { if (st) { st.stop(); } return; }
+      stageObj = st; stageFocus(stageDefault());
+    }).catch(function () { var a = document.querySelector('.stage'); if (a) { a.hidden = true; } });
+  }
+  document.addEventListener('mouseover', function (e) { var a = e.target.closest && e.target.closest('.pick-list a[href^="#/m/"]'); if (a) { stageFocus(a.getAttribute('href').split('/')[2]); } });
+  document.addEventListener('focusin', function (e) { var a = e.target.closest && e.target.closest('.pick-list a[href^="#/m/"]'); if (a) { stageFocus(a.getAttribute('href').split('/')[2]); } });
+  document.addEventListener('mouseout', function (e) { if (e.target.closest && e.target.closest('.pick-list') && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.pick-list'))) { stageFocus(stageDefault()); } });
 
   /* =========================================================  WORKOUT  */
   function initialDraft(ex, today) {
@@ -1275,6 +1291,7 @@
     if (r.name === 'home' && r.arg) { var an = document.getElementById('sec-' + r.arg); if (an) { an.scrollIntoView(); } }
     if (r.name === 'plan' && r.arg) { var pd = document.getElementById('pd-' + r.arg); if (pd) { pd.scrollIntoView(); } }
     var title = { today: 'Today', pick: 'Choose a muscle', calendar: 'Calendar', home: 'Home', plan: 'Plan', m: r.arg && Data.MUSCLES[r.arg] ? Data.MUSCLES[r.arg].name : 'Workout', summary: 'Summary' }[r.name];
+    setupStage(r);
     document.title = gate ? 'Gym Workout Tracker' : title + ' | Gym Workout Tracker';
   }
   function showMuscle(box, v) {

@@ -268,4 +268,53 @@ async function muscleMap(cv, ex, view) {
   scene.traverse(o => { if (o.geometry && !o.isSkinnedMesh) { o.geometry.dispose(); } });
 }
 
-window.Engine3D = { muscleMap, mount, unmountAll, redraw() { figures.forEach(s => { s.dirty = true; }); kick(); }, supports: ex => !!exerciseFor(ex), ok: true };
+/* ---------- stage: one live body (laptop) whose camera glides to the chosen muscle group and lights it ---------- */
+// yaw 0 = facing us, 180 = from behind. y = height the camera looks at, d = distance (smaller = closer).
+const FOCUS = {
+  all:       { yaw: 0,   y: 0.9,  d: 3.65, p: [], s: [] },
+  chest:     { yaw: 0,   y: 1.3, d: 2.35, p: ['pec_up', 'pec_low'], s: ['delt_ant'] },
+  back:      { yaw: 180, y: 1.22, d: 2.75, p: ['lats', 'trap_up', 'trap_mid', 'trap_low', 'infra', 'teres', 'back_low'], s: ['delt_post'] },
+  legs:      { yaw: 25,  y: 0.55, d: 3.0,  p: ['quad', 'glute', 'ham', 'calf'], s: [] },
+  shoulders: { yaw: 35,  y: 1.4,  d: 2.45,  p: ['delt_ant', 'delt_lat', 'delt_post'], s: ['trap_up'] },
+  arms:      { yaw: 50,  y: 1.15, d: 2.8,  p: ['biceps', 'triceps', 'forearm'], s: [] },
+  core:      { yaw: 0,   y: 1.1,  d: 2.5,  p: ['abs'], s: [] }
+};
+async function stage(cv) {
+  const sh = await shared(); if (!cv.isConnected) { return null; }
+  const scene = new THREE.Scene(); scene.environment = sh.env; scene.environmentIntensity = 0.6;
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x8a9a94, 0.5));
+  const key = new THREE.DirectionalLight(0xffffff, 2.0); key.position.set(-2, 3.5, 3.5); scene.add(key);
+  const back = new THREE.DirectionalLight(0xffffff, 1.4); back.position.set(2, 3, -3.5); scene.add(back);
+  const root = SkeletonUtils.clone(sh.gltf.scene); let body = null;
+  root.traverse(o => { if (o.isMesh) { o.frustumCulled = false; } if (o.isSkinnedMesh && o.name.includes('SuperHero')) { body = o; } });
+  const mm = muscleMaterial(body); body.material.color.set(SKIN); scene.add(root);
+  const rig = new Rig(root); rig.reset();
+  for (const side of ['l', 'r']) {
+    const m = side === 'l' ? (x => x) : (x => new V3(-x.x, x.y, x.z));
+    rig.armFK(side, m(new V3(0.2, -1, 0.02).normalize()), m(new V3(0.12, -1, 0.05).normalize()), m(new V3(0, 0, 1)), 0.3);
+  }
+  root.updateMatrixWorld(true);
+  const cam = new THREE.PerspectiveCamera(27, 1, 0.05, 40), cur = { yaw: 0, y: 0.9, d: 3.65 };
+  let goal = FOCUS.all, stopped = false, last = 0, lastW = 0, still = 0, sway = 0;
+  const frame = now => {
+    if (stopped || !cv.isConnected) { stopped = true; scene.traverse(o => { if (o.geometry && !o.isSkinnedMesh) { o.geometry.dispose(); } }); return; }
+    requestAnimationFrame(frame);
+    if (document.visibilityState !== 'visible') { return; }
+    const dt = last ? Math.min(50, now - last) : 16; last = now;
+    const W = Math.round(cv.clientWidth); if (!W) { return; }
+    const k = reduce ? 1 : 1 - Math.exp(-dt / 260), dyaw = ((goal.yaw - cur.yaw + 540) % 360) - 180;
+    const moving = Math.abs(dyaw) > 0.05 || Math.abs(goal.y - cur.y) > 0.001 || Math.abs(goal.d - cur.d) > 0.002;
+    cur.yaw += dyaw * k; cur.y += (goal.y - cur.y) * k; cur.d += (goal.d - cur.d) * k;
+    if (!reduce) { sway += dt; } else if (!moving && W === lastW) { return; }
+    const H = Math.round(W * 1.25), dpr = Math.min(2, window.devicePixelRatio || 1);
+    if (W !== lastW) { cv.width = W * dpr; cv.height = H * dpr; cv.style.height = H + 'px'; cam.aspect = W / H; cam.updateProjectionMatrix(); lastW = W; }
+    const ya = (cur.yaw + (reduce ? 0 : Math.sin(sway / 1600) * 5)) * DEG;
+    cam.position.set(Math.sin(ya) * cur.d, cur.y + 0.1, Math.cos(ya) * cur.d); cam.lookAt(0, cur.y, 0);
+    const r = sh.renderer; r.setPixelRatio(1); r.setSize(cv.width, cv.height, false); r.setClearColor(0x000000, 0); r.render(scene, cam);
+    const c2 = cv.getContext('2d'); c2.clearRect(0, 0, cv.width, cv.height); c2.drawImage(r.domElement, 0, 0);
+  };
+  requestAnimationFrame(frame);
+  return { focus(g) { goal = FOCUS[g] || FOCUS.all; mm.set(goal.p, goal.s); cv.dataset.focus = FOCUS[g] ? g : 'all'; }, stop() { stopped = true; } };
+}
+
+window.Engine3D = { muscleMap, stage, mount, unmountAll, redraw() { figures.forEach(s => { s.dirty = true; }); kick(); }, supports: ex => !!exerciseFor(ex), ok: true };
